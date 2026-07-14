@@ -43,6 +43,14 @@ Loaded and validated at startup via `@nestjs/config` (`src/config/env.validation
 
 `GET /api/docs` — Swagger UI, generated from `@ApiTags`/`@ApiOperation`/`@ApiProperty` decorators (see `src/app.controller.ts` for the annotation pattern). Only enabled when `NODE_ENV !== 'production'`.
 
+### Code style
+
+- `npm run lint` — check only (ESLint + Prettier via `eslint-plugin-prettier`), fails on any issue
+- `npm run lint:fix` — same, with `--fix`
+- `npm run format` — `prettier --write`
+
+`src/generated/` (Prisma Client output) is excluded from both.
+
 ## Status
 
 NestJS project skeleton initialized (feature-module folder convention, see [nestjs-best-practices](.claude/skills/nestjs-best-practices) skill), MySQL connection wired up via Prisma, environment configuration validated via `@nestjs/config`, Swagger/OpenAPI docs available in dev. No domain modules yet — see the [steramer.io](https://github.com/MACTEPwar/steramer.io) umbrella repository (this repo is included there as a git submodule at `backend/`) for design source (Figma exports), overall project conventions, and the current dev-prep task plan.
