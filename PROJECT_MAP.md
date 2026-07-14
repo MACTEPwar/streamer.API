@@ -14,9 +14,14 @@
 - Путь: подключение в `src/app.module.ts`, схема валидации `src/config/env.validation.ts`
 - Назначение: загрузка `.env` + валидация обязательных переменных окружения при старте (Joi)
 
+### HealthModule
+- Путь: `src/health/`
+- Назначение: `GET /health` — liveness-check, без проверки БД (заметка на будущее)
+
 ## Эндпоинты
 
 - `GET /` — `src/app.controller.ts` — базовая информация о приложении (`{ name, version }`), пример аннотирования Swagger-декораторами
+- `GET /health` — `src/health/health.controller.ts` — `{ status: 'ok' }`, без авторизации, для docker-compose/CI healthcheck
 - `GET /api/docs` — Swagger UI (настроен в `src/main.ts`, только вне `NODE_ENV=production`)
 
 ## Сервисы
