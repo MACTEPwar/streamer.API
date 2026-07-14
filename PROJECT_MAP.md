@@ -6,9 +6,9 @@
 
 ## Модули
 
-<!-- ### <ModuleName>
-- Путь: `src/<module>/`
-- Назначение: -->
+### PrismaModule
+- Путь: `src/prisma/`
+- Назначение: глобальный модуль подключения к MySQL через Prisma (driver adapter `@prisma/adapter-mariadb`), без доменной схемы
 
 ## Эндпоинты
 
@@ -16,8 +16,8 @@
 
 ## Сервисы
 
-<!-- - `ServiceName` — `src/<module>/<file>` — методы: `method1()`, `method2()` -->
+- `PrismaService` — `src/prisma/prisma.service.ts` — расширяет `PrismaClient`; `onModuleInit()` — `$connect()` + проверочный `SELECT 1`, `onModuleDestroy()` — `$disconnect()`
 
 ## Опции окружения / feature-флаги
 
-<!-- - `ENV_VAR_NAME` — назначение, где читается -->
+- `DATABASE_URL` — строка подключения к MySQL (`mysql://USER:PASSWORD@HOST:PORT/DATABASE`), читается Prisma (`prisma.config.ts`, `src/prisma/prisma.service.ts` через `dotenv/config` в `main.ts`)
