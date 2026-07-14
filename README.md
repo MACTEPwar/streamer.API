@@ -43,6 +43,10 @@ Loaded and validated at startup via `@nestjs/config` (`src/config/env.validation
 
 `GET /api/docs` — Swagger UI, generated from `@ApiTags`/`@ApiOperation`/`@ApiProperty` decorators (see `src/app.controller.ts` for the annotation pattern). Only enabled when `NODE_ENV !== 'production'`.
 
+### Health check
+
+`GET /health` — `{ "status": "ok" }`, no auth required. Intended for docker-compose/CI healthchecks. No DB connectivity check yet (deliberately deferred — see `src/health/health.controller.ts`).
+
 ### Code style
 
 - `npm run lint` — check only (ESLint + Prettier via `eslint-plugin-prettier`), fails on any issue
