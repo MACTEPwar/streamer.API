@@ -8,6 +8,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
+  // CORS_ORIGIN is the dev Angular origin only; production origins must be
+  // reviewed/reconfigured separately before a real deployment (see #5 scope).
+  app.enableCors({ origin: configService.get<string>('CORS_ORIGIN') });
+
   if (configService.get<string>('NODE_ENV') !== 'production') {
     const document = SwaggerModule.createDocument(
       app,
