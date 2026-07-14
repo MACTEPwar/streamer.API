@@ -16,7 +16,8 @@
 
 ## Эндпоинты
 
-<!-- - `METHOD /path` — `src/<module>/<file>` — краткое назначение -->
+- `GET /` — `src/app.controller.ts` — базовая информация о приложении (`{ name, version }`), пример аннотирования Swagger-декораторами
+- `GET /api/docs` — Swagger UI (настроен в `src/main.ts`, только вне `NODE_ENV=production`)
 
 ## Сервисы
 
