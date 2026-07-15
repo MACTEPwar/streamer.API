@@ -38,6 +38,8 @@ Loaded and validated at startup via `@nestjs/config` (`src/config/env.validation
 | `NODE_ENV` | no | `development` | `development` \| `production` \| `test` |
 | `PORT` | no | `3000` | HTTP port |
 | `CORS_ORIGIN` | no | `http://localhost:4200` | Allowed dev origin (Angular dev server), used with `credentials: true` (required for cookie-based JWT auth — see `src/main.ts`). **Not production-ready as-is** — needs review/reconfiguration for real deployment origins. |
+| `JWT_SECRET` | yes | — | Signing secret for session JWTs, min. 32 chars. Never commit a real value — `.env` is gitignored, `.env.example` only has a placeholder. |
+| `JWT_EXPIRES_IN` | no | `7d` | Access-token TTL (any `jsonwebtoken`-compatible duration string), also used as the auth cookie's `maxAge`. |
 
 ### API docs
 
@@ -82,6 +84,20 @@ findAll(@Query() query: NewsQueryDto) { ... }
 ```
 
 `filter` is deliberately not part of the shared DTO — it's domain-specific; each feature adds its own fields by extending `PaginationQueryDto`.
+
+### Auth / sessions
+
+`AuthModule` (`src/auth/`) — shared JWT/cookie session infrastructure, reused by the local login and Google OAuth flows (not implemented yet):
+
+- `AuthService.issueToken({ sub, role })` — signs an access JWT (`JWT_SECRET`/`JWT_EXPIRES_IN`). No refresh token at this stage.
+- `AuthService.setAuthCookie(res, token)` / `clearAuthCookie(res)` — sets/clears the `access_token` cookie (`HttpOnly`, `Secure`, `SameSite=Lax`; `maxAge` derived from the token's real `exp`, not by re-parsing `JWT_EXPIRES_IN`). Future login/OAuth endpoints call these instead of touching cookies directly.
+- `JwtAuthGuard` — reads the cookie, verifies it, attaches `req.user = { id, role }`. Applied per-route via `@UseGuards(JwtAuthGuard)` (not global — most current endpoints are public). No role/RBAC checks yet.
+- `GET /auth/me` (protected) — returns `{ id, login, role, email }` for the current session; `401` (unified `ErrorResponseDto` shape) if the cookie is missing/invalid.
+- `POST /auth/logout` (public) — clears the cookie.
+
+CSRF: relies on `SameSite=Lax` as the primary defense — no separate CSRF token at this stage, since the frontend never reads the cookie value itself (plain cookie-JWT scheme, not a token echoed back in headers). Revisit if that assumption changes.
+
+`cookie-parser` middleware is registered globally in `src/main.ts` so `req.cookies` is available everywhere.
 
 ### Code style
 

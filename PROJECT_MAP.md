@@ -18,6 +18,16 @@
 - Путь: `src/health/`
 - Назначение: `GET /health` — liveness-check, без проверки БД (заметка на будущее)
 
+### AuthModule
+- Путь: `src/auth/`
+- Назначение: общая JWT/cookie сессионная инфраструктура — переиспользуется будущими #17 (локальный логин), #18 (Google OAuth) и защищает будущие #21/#22/#23 (Profile/Upload/Settings) через `JwtAuthGuard`. Только access-токен (без refresh), без RBAC/ролевой логики (заложена только в payload).
+- Компоненты:
+  - `AuthService` (`auth.service.ts`) — `issueToken({ sub, role })`, `setAuthCookie(res, token)`/`clearAuthCookie(res)` (атрибуты `HttpOnly`/`Secure`/`SameSite=Lax`, `maxAge` из реального `exp` токена), `verifyToken(token)`
+  - `JwtAuthGuard` (`guards/jwt-auth.guard.ts`) — читает JWT из cookie `access_token`, кладёт `req.user = { id, role }`; применяется точечно через `@UseGuards()`, не глобально
+  - `AuthController` (`auth.controller.ts`) — `GET /auth/me` (защищён), `POST /auth/logout` (публичный)
+- Экспортирует `AuthService`/`JwtAuthGuard`/`JwtModule` — модули #17/#18/#21/#22/#23 импортируют `AuthModule`, не настраивают JWT заново
+- `cookie-parser` подключён глобально в `src/main.ts` (`req.cookies`)
+
 ## Модели данных (Prisma)
 
 - Путь схемы: `prisma/schema.prisma`, миграции в `prisma/migrations/`
@@ -37,10 +47,13 @@
 - `GET /` — `src/app.controller.ts` — базовая информация о приложении (`{ name, version }`), пример аннотирования Swagger-декораторами
 - `GET /health` — `src/health/health.controller.ts` — `{ status: 'ok' }`, без авторизации, для docker-compose/CI healthcheck
 - `GET /api/docs` — Swagger UI (настроен в `src/main.ts`, только вне `NODE_ENV=production`)
+- `GET /auth/me` — `src/auth/auth.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, login, role, email }` текущей сессии, `401` без/с невалидной cookie
+- `POST /auth/logout` — `src/auth/auth.controller.ts` — публичный, сбрасывает auth-cookie
 
 ## Сервисы
 
 - `PrismaService` — `src/prisma/prisma.service.ts` — расширяет `PrismaClient`; `onModuleInit()` — `$connect()` + проверочный `SELECT 1`, `onModuleDestroy()` — `$disconnect()`; `DATABASE_URL` читается через `ConfigService.getOrThrow()`
+- `AuthService` — `src/auth/auth.service.ts` — см. AuthModule выше
 
 ## Опции окружения / feature-флаги
 
@@ -48,3 +61,5 @@
 - `NODE_ENV` — `development` \| `production` \| `test`, по умолчанию `development`
 - `PORT` — HTTP-порт приложения, по умолчанию `3000`
 - `CORS_ORIGIN` — разрешённый origin для CORS (dev Angular-сервер), по умолчанию `http://localhost:4200`; используется с `credentials: true` (нужно для cookie-based JWT); прод-origin'ы требуют отдельного пересмотра
+- `JWT_SECRET` — секрет подписи сессионных JWT, обязательный, минимум 32 символа
+- `JWT_EXPIRES_IN` — TTL access-токена, по умолчанию `7d`; также используется как `maxAge` auth-cookie
