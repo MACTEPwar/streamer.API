@@ -110,6 +110,17 @@ CSRF: relies on `SameSite=Lax` as the primary defense — no separate CSRF token
 
 No viewing/editing other users' profiles, no role-based restrictions (out of scope — see `streamer.API#21`).
 
+### Settings
+
+`SettingsModule` (`src/settings/`) — read/edit the current user's own settings, protected by `JwtAuthGuard` (imports `AuthModule` for that):
+
+- `GET /settings` — returns `{ id, userId, theme, receiveNotifications }`.
+- `PATCH /settings` — updates `theme` (`LIGHT` \| `DARK` \| `SYSTEM`, `SYSTEM` = "match device theme") and/or `receiveNotifications` (boolean).
+
+**Deliberate scope deviation from `streamer.API#23`:** the issue's "Не входит" list excluded notification settings ("not carved out as a separate feature yet"). `receiveNotifications` is a single blanket flag added anyway by explicit user decision — no per-notification-type granularity, that's still a separate future task.
+
+No viewing/editing other users' settings, no role-based restrictions.
+
 ### Code style
 
 - `npm run lint` — check only (ESLint + Prettier via `eslint-plugin-prettier`), fails on any issue
