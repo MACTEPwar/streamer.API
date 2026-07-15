@@ -1,12 +1,23 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { APP_NAME, APP_VERSION } from './app-info';
+import { ErrorResponseDto } from './shared/dto/error-response.dto';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   // CORS_ORIGIN is the dev Angular origin only; production origins must be
   // reviewed/reconfigured separately before a real deployment (see #5 scope).
@@ -26,6 +37,7 @@ async function bootstrap() {
         .setDescription('Backend API for the steramer.io project.')
         .setVersion(APP_VERSION)
         .build(),
+      { extraModels: [ErrorResponseDto] },
     );
     SwaggerModule.setup('api/docs', app, document);
   }
