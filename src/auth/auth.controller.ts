@@ -19,9 +19,11 @@ import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErrorResponseDto } from '../shared/dto/error-response.dto';
 import { AuthService } from './auth.service';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UserMeDto } from './dto/user-me.dto';
+import { GoogleAuthService } from './google-auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthService } from './local-auth.service';
 
@@ -31,6 +33,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly localAuthService: LocalAuthService,
+    private readonly googleAuthService: GoogleAuthService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -60,6 +63,24 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserMeDto> {
     const user = await this.localAuthService.validateCredentials(dto);
+    const token = this.authService.issueToken({
+      sub: user.id,
+      role: user.role,
+    });
+    this.authService.setAuthCookie(res, token);
+
+    return this.toUserMeDto(user);
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: UserMeDto })
+  @ApiResponse({ status: 401, type: ErrorResponseDto })
+  async google(
+    @Body() dto: GoogleAuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<UserMeDto> {
+    const user = await this.googleAuthService.authenticate(dto);
     const token = this.authService.issueToken({
       sub: user.id,
       role: user.role,

@@ -40,6 +40,7 @@ Loaded and validated at startup via `@nestjs/config` (`src/config/env.validation
 | `CORS_ORIGIN` | no | `http://localhost:4200` | Allowed dev origin (Angular dev server), used with `credentials: true` (required for cookie-based JWT auth — see `src/main.ts`). **Not production-ready as-is** — needs review/reconfiguration for real deployment origins. |
 | `JWT_SECRET` | yes | — | Signing secret for session JWTs, min. 32 chars. Never commit a real value — `.env` is gitignored, `.env.example` only has a placeholder. |
 | `JWT_EXPIRES_IN` | no | `7d` | Access-token TTL (any `jsonwebtoken`-compatible duration string), also used as the auth cookie's `maxAge`. |
+| `GOOGLE_CLIENT_ID` | yes | — | Google OAuth Client ID, used as the `audience` when verifying Google ID tokens. Real value comes from `steramer.io#2` (still open as of this writing) — `.env` currently has a placeholder; swap it in once real credentials exist. |
 
 ### API docs
 
@@ -87,7 +88,7 @@ findAll(@Query() query: NewsQueryDto) { ... }
 
 ### Auth / sessions
 
-`AuthModule` (`src/auth/`) — shared JWT/cookie session infrastructure, reused by the local login and Google OAuth (not implemented yet) flows:
+`AuthModule` (`src/auth/`) — shared JWT/cookie session infrastructure, reused by the local login and Google OAuth flows:
 
 - `AuthService.issueToken({ sub, role })` — signs an access JWT (`JWT_SECRET`/`JWT_EXPIRES_IN`). No refresh token at this stage.
 - `AuthService.setAuthCookie(res, token)` / `clearAuthCookie(res)` — sets/clears the `access_token` cookie (`HttpOnly`, `Secure`, `SameSite=Lax`; `maxAge` derived from the token's real `exp`, not by re-parsing `JWT_EXPIRES_IN`). Login/register/OAuth endpoints call these instead of touching cookies directly.
@@ -96,6 +97,9 @@ findAll(@Query() query: NewsQueryDto) { ... }
 - `POST /auth/logout` (public) — clears the cookie.
 - `POST /auth/register` — `LocalAuthService.register()`: hashes the password (`bcrypt`, 12 salt rounds), creates `User` (`role=USER`) with `Profile`/`Settings` in the same nested write (Prisma nested writes are already atomic — no separate `$transaction` needed) so `GET /profile`/`GET /settings` never hit a missing row, issues the session cookie, returns `UserMeDto`. Duplicate `login` → `409` (`ErrorResponseDto`).
 - `POST /auth/login` — `LocalAuthService.validateCredentials()`: looks up by `login`, compares the bcrypt hash, issues the session cookie, returns `UserMeDto`. Wrong login or password (or a Google-only account with no `passwordHash`) → the same `401` message ("Неверный логин или пароль") either way, to avoid leaking which part was wrong.
+- `POST /auth/google` — `GoogleAuthService.authenticate()`: verifies the Google ID token via `google-auth-library`'s `OAuth2Client.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID })`. **Chosen verification flow: ID-token only, no Client Secret** — that's only needed for the authorization-code flow, which this app doesn't use, so `GOOGLE_CLIENT_SECRET` is deliberately not configured. Lookup order: `googleId` → (if `email_verified === true`) `Profile.email`, auto-linking an existing local account by setting its `googleId` → otherwise creates a new `User`+`Profile`+`Settings` (same atomic nested write as `register()`). New Google-created users get `login = googleId` — `User.login` is a required unique column and Google doesn't provide one, but the user never interacts with it directly (they only ever click "Sign in with Google"). Any verification failure (invalid signature, expired, wrong audience, missing `sub`) → unified `401`.
+
+**Verification limitation:** `steramer.io#2` (real Google OAuth credentials) is still open — `GOOGLE_CLIENT_ID` in `.env` is a placeholder. Only the invalid-token path (`401`) could be tested end-to-end; the happy path (real token → find-or-create → cookie) needs a real Google Client ID and a token signed by Google, and is untested until then.
 
 CSRF: relies on `SameSite=Lax` as the primary defense — no separate CSRF token at this stage, since the frontend never reads the cookie value itself (plain cookie-JWT scheme, not a token echoed back in headers). Revisit if that assumption changes.
 
