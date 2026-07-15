@@ -87,13 +87,15 @@ findAll(@Query() query: NewsQueryDto) { ... }
 
 ### Auth / sessions
 
-`AuthModule` (`src/auth/`) — shared JWT/cookie session infrastructure, reused by the local login and Google OAuth flows (not implemented yet):
+`AuthModule` (`src/auth/`) — shared JWT/cookie session infrastructure, reused by the local login and Google OAuth (not implemented yet) flows:
 
 - `AuthService.issueToken({ sub, role })` — signs an access JWT (`JWT_SECRET`/`JWT_EXPIRES_IN`). No refresh token at this stage.
-- `AuthService.setAuthCookie(res, token)` / `clearAuthCookie(res)` — sets/clears the `access_token` cookie (`HttpOnly`, `Secure`, `SameSite=Lax`; `maxAge` derived from the token's real `exp`, not by re-parsing `JWT_EXPIRES_IN`). Future login/OAuth endpoints call these instead of touching cookies directly.
+- `AuthService.setAuthCookie(res, token)` / `clearAuthCookie(res)` — sets/clears the `access_token` cookie (`HttpOnly`, `Secure`, `SameSite=Lax`; `maxAge` derived from the token's real `exp`, not by re-parsing `JWT_EXPIRES_IN`). Login/register/OAuth endpoints call these instead of touching cookies directly.
 - `JwtAuthGuard` — reads the cookie, verifies it, attaches `req.user = { id, role }`. Applied per-route via `@UseGuards(JwtAuthGuard)` (not global — most current endpoints are public). No role/RBAC checks yet.
 - `GET /auth/me` (protected) — returns `{ id, login, role, email }` for the current session; `401` (unified `ErrorResponseDto` shape) if the cookie is missing/invalid.
 - `POST /auth/logout` (public) — clears the cookie.
+- `POST /auth/register` — `LocalAuthService.register()`: hashes the password (`bcrypt`, 12 salt rounds), creates `User` (`role=USER`) with `Profile`/`Settings` in the same nested write (Prisma nested writes are already atomic — no separate `$transaction` needed) so `GET /profile`/`GET /settings` never hit a missing row, issues the session cookie, returns `UserMeDto`. Duplicate `login` → `409` (`ErrorResponseDto`).
+- `POST /auth/login` — `LocalAuthService.validateCredentials()`: looks up by `login`, compares the bcrypt hash, issues the session cookie, returns `UserMeDto`. Wrong login or password (or a Google-only account with no `passwordHash`) → the same `401` message ("Неверный логин или пароль") either way, to avoid leaking which part was wrong.
 
 CSRF: relies on `SameSite=Lax` as the primary defense — no separate CSRF token at this stage, since the frontend never reads the cookie value itself (plain cookie-JWT scheme, not a token echoed back in headers). Revisit if that assumption changes.
 

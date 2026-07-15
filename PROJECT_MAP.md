@@ -24,8 +24,9 @@
 - Компоненты:
   - `AuthService` (`auth.service.ts`) — `issueToken({ sub, role })`, `setAuthCookie(res, token)`/`clearAuthCookie(res)` (атрибуты `HttpOnly`/`Secure`/`SameSite=Lax`, `maxAge` из реального `exp` токена), `verifyToken(token)`
   - `JwtAuthGuard` (`guards/jwt-auth.guard.ts`) — читает JWT из cookie `access_token`, кладёт `req.user = { id, role }`; применяется точечно через `@UseGuards()`, не глобально
-  - `AuthController` (`auth.controller.ts`) — `GET /auth/me` (защищён), `POST /auth/logout` (публичный)
-- Экспортирует `AuthService`/`JwtAuthGuard`/`JwtModule` — модули #17/#18/#21/#22/#23 импортируют `AuthModule`, не настраивают JWT заново
+  - `AuthController` (`auth.controller.ts`) — `GET /auth/me` (защищён), `POST /auth/logout` (публичный), `POST /auth/register`, `POST /auth/login` (публичные, локальный логин/пароль)
+  - `LocalAuthService` (`local-auth.service.ts`) — `register()` (bcrypt-хэш пароля, `User`+`Profile`+`Settings` одной вложенной записью — атомарно без явного `$transaction`, `409` при занятом `login`), `validateCredentials()` (поиск + `bcrypt.compare`, единый `401` независимо от того, что именно неверно)
+- Экспортирует `AuthService`/`JwtAuthGuard`/`JwtModule` — модули #18/#21/#22/#23 импортируют `AuthModule`, не настраивают JWT заново
 - `cookie-parser` подключён глобально в `src/main.ts` (`req.cookies`)
 
 ## Модели данных (Prisma)
@@ -49,11 +50,14 @@
 - `GET /api/docs` — Swagger UI (настроен в `src/main.ts`, только вне `NODE_ENV=production`)
 - `GET /auth/me` — `src/auth/auth.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, login, role, email }` текущей сессии, `401` без/с невалидной cookie
 - `POST /auth/logout` — `src/auth/auth.controller.ts` — публичный, сбрасывает auth-cookie
+- `POST /auth/register` — `src/auth/auth.controller.ts` — регистрация по логину/паролю, создаёт `User`+`Profile`+`Settings`, выдаёт сессионную cookie, `409` при занятом `login`
+- `POST /auth/login` — `src/auth/auth.controller.ts` — логин по логину/паролю, выдаёт сессионную cookie, `401` при неверных данных
 
 ## Сервисы
 
 - `PrismaService` — `src/prisma/prisma.service.ts` — расширяет `PrismaClient`; `onModuleInit()` — `$connect()` + проверочный `SELECT 1`, `onModuleDestroy()` — `$disconnect()`; `DATABASE_URL` читается через `ConfigService.getOrThrow()`
 - `AuthService` — `src/auth/auth.service.ts` — см. AuthModule выше
+- `LocalAuthService` — `src/auth/local-auth.service.ts` — см. AuthModule выше
 
 ## Опции окружения / feature-флаги
 
