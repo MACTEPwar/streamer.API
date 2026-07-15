@@ -7,6 +7,7 @@ import { envValidationSchema } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
+import { SettingsModule } from './settings/settings.module';
 import { AllExceptionsFilter } from './shared/filters/http-exception.filter';
 
 @Module({
@@ -19,6 +20,7 @@ import { AllExceptionsFilter } from './shared/filters/http-exception.filter';
     HealthModule,
     AuthModule,
     ProfileModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [

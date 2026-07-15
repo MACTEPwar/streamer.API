@@ -38,13 +38,23 @@
 - `imports: [AuthModule]` — нужен для DI-резолва `JwtAuthGuard` (сам guard зависит от `AuthService`)
 - Редактируемое поле пока только `email` (единственное поле `Profile` кроме id/userId на данный момент — см. схему #15); явный сброс `email` в `null` не поддержан (не требовалось AC)
 
+### SettingsModule
+- Путь: `src/settings/`
+- Назначение: `GET`/`PATCH /settings` — чтение/редактирование собственных настроек текущего пользователя. Только свои настройки, без ролевых ограничений.
+- Компоненты:
+  - `SettingsService` (`settings.service.ts`) — `findByUserId(userId)`, `update(userId, dto)` поверх `prisma.settings`
+  - `SettingsController` (`settings.controller.ts`) — защищён `JwtAuthGuard` (из `AuthModule`) на уровне контроллера
+- `imports: [AuthModule]` — нужен для DI-резолва `JwtAuthGuard`
+- Редактируемые поля: `theme` (`LIGHT`/`DARK`/`SYSTEM`), `receiveNotifications` (boolean). **Осознанное отступление от AC #23** — пункт «Не входит» issue исключал настройки уведомлений как отдельную фичу; `receiveNotifications` — простой флаг без детализации по типам уведомлений, добавлен по прямому решению пользователя (детализация по типам всё ещё отдельная будущая задача)
+
 ## Модели данных (Prisma)
 
 - Путь схемы: `prisma/schema.prisma`, миграции в `prisma/migrations/`
 - `Role` (enum) — `ADMIN` \| `MODERATOR` \| `USER`; "гость" — НЕ значение enum, а отсутствие валидной сессии/JWT
+- `Theme` (enum) — `LIGHT` \| `DARK` \| `SYSTEM` ("как на устройстве")
 - `User` — `id` (`String`, `cuid()`), `login` (unique), `passwordHash` (nullable — может не быть при чисто Google-аккаунте), `provider`/`googleId` (nullable, `googleId` unique — Google OAuth), `role` (default `USER`), `createdAt`/`updatedAt`
 - `Profile` — 1:1 с `User` (`userId` unique), `email` (nullable, не верифицируется, для связи/уведомлений и авто-связки Google по email)
-- `Settings` — 1:1 с `User` (`userId` unique), пока без доп. полей (задел под будущие пользовательские настройки)
+- `Settings` — 1:1 с `User` (`userId` unique), `theme` (default `SYSTEM`), `receiveNotifications` (`Boolean`, default `true`)
 
 ## Глобальная инфраструктура
 
@@ -63,6 +73,8 @@
 - `POST /auth/login` — `src/auth/auth.controller.ts` — логин по логину/паролю, выдаёт сессионную cookie, `401` при неверных данных
 - `GET /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, email }` собственного профиля
 - `PATCH /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, обновляет `email` собственного профиля
+- `GET /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, theme, receiveNotifications }` собственных настроек
+- `PATCH /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, обновляет `theme`/`receiveNotifications` собственных настроек
 
 ## Сервисы
 
@@ -70,6 +82,7 @@
 - `AuthService` — `src/auth/auth.service.ts` — см. AuthModule выше
 - `LocalAuthService` — `src/auth/local-auth.service.ts` — см. AuthModule выше
 - `ProfileService` — `src/profile/profile.service.ts` — см. ProfileModule выше
+- `SettingsService` — `src/settings/settings.service.ts` — см. SettingsModule выше
 
 ## Опции окружения / feature-флаги
 

@@ -43,9 +43,17 @@ model Profile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM // "как на устройстве" — тема подстраивается под системную настройку клиента
+}
+
 model Settings {
-  id     String @id @default(cuid())
-  userId String @unique
+  id                   String  @id @default(cuid())
+  userId               String  @unique
+  theme                Theme   @default(SYSTEM)
+  receiveNotifications Boolean @default(true)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
