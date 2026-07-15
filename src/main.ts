@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { APP_NAME, APP_VERSION } from './app-info';
 import { ErrorResponseDto } from './shared/dto/error-response.dto';
@@ -10,6 +11,8 @@ import { PaginationMetaDto } from './shared/dto/pagination-meta.dto';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+
+  app.use(cookieParser());
 
   app.useGlobalPipes(
     new ValidationPipe({
