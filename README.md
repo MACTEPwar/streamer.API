@@ -125,6 +125,17 @@ No viewing/editing other users' profiles, no role-based restrictions (out of sco
 
 No viewing/editing other users' settings, no role-based restrictions.
 
+### Uploads
+
+`UploadModule` (`src/upload/`) — generic file upload to the local filesystem (not S3/CDN — deliberate, see project decisions), served back over a public URL:
+
+- `POST /upload` — protected by `JwtAuthGuard`; `multipart/form-data` with a `file` field. Allowlisted MIME types only (`image/jpeg`, `image/png`, `image/webp` — sized for avatar use cases), max 5 MB (`MAX_UPLOAD_SIZE_BYTES`). Returns `{ url: "/uploads/<uuid>.<ext>" }`. Invalid MIME type or missing file → `400`; oversized file → `413`.
+- Files are stored under `uploads/` at the project root (gitignored, created on boot if missing) with a random UUID filename — the on-disk extension comes from a MIME→extension lookup (`MIME_EXTENSION_MAP`), not from the client-supplied original filename.
+- `GET /uploads/<filename>` — served via Express `useStaticAssets` (`src/main.ts`), **no auth required to read**, per AC.
+- `multer` errors (oversized file, malformed multipart) are already converted into proper `HttpException`s by `@nestjs/platform-express`'s own `FileInterceptor` (via its internal `transformException()`) before they reach `AllExceptionsFilter` — no extra handling needed there, they surface as normal `413`/`400`.
+
+Not in scope here: wiring the returned URL into `Profile` as an avatar field (separate future task), no UI.
+
 ### Code style
 
 - `npm run lint` — check only (ESLint + Prettier via `eslint-plugin-prettier`), fails on any issue
