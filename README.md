@@ -53,6 +53,36 @@ Loaded and validated at startup via `@nestjs/config` (`src/config/env.validation
 
 Валидация входных данных — глобальный `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`): неизвестные поля в теле запроса отклоняются, DTO должны использовать декораторы `class-validator`.
 
+### Pagination / sorting / filtering convention
+
+Shared base for list endpoints (`src/shared/`):
+
+```typescript
+// 1. Feature query DTO extends the base — page/limit/sortBy/sortOrder are
+//    already there, add your own filter fields with class-validator:
+export class NewsQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  tag?: string;
+}
+
+// 2. Build the response with buildPaginationMeta(page, limit, total):
+async findAll(query: NewsQueryDto) {
+  const [items, total] = await Promise.all([
+    this.prisma.news.findMany({ skip: (query.page - 1) * query.limit, take: query.limit }),
+    this.prisma.news.count(),
+  ]);
+  return { items, meta: buildPaginationMeta(query.page, query.limit, total) };
+}
+
+// 3. Document it in Swagger:
+@Get()
+@ApiPaginatedResponse(NewsResponseDto)
+findAll(@Query() query: NewsQueryDto) { ... }
+```
+
+`filter` is deliberately not part of the shared DTO — it's domain-specific; each feature adds its own fields by extending `PaginationQueryDto`.
+
 ### Code style
 
 - `npm run lint` — check only (ESLint + Prettier via `eslint-plugin-prettier`), fails on any issue
