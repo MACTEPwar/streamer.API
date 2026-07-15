@@ -4,6 +4,7 @@ import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import type { SignOptions } from 'jsonwebtoken';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleAuthService } from './google-auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthService } from './local-auth.service';
 
@@ -23,7 +24,7 @@ import { LocalAuthService } from './local-auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, LocalAuthService],
+  providers: [AuthService, JwtAuthGuard, LocalAuthService, GoogleAuthService],
   exports: [AuthService, JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}

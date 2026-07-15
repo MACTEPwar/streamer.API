@@ -9,10 +9,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BCRYPT_SALT_ROUNDS } from './constants/password.constant';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UserWithProfile } from './types/user-with-profile.type';
 
 const INVALID_CREDENTIALS_MESSAGE = 'Неверный логин или пароль';
-
-type UserWithProfile = Prisma.UserGetPayload<{ include: { profile: true } }>;
 
 @Injectable()
 export class LocalAuthService {

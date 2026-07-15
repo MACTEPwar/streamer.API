@@ -26,7 +26,9 @@
   - `JwtAuthGuard` (`guards/jwt-auth.guard.ts`) — читает JWT из cookie `access_token`, кладёт `req.user = { id, role }`; применяется точечно через `@UseGuards()`, не глобально
   - `AuthController` (`auth.controller.ts`) — `GET /auth/me` (защищён), `POST /auth/logout` (публичный), `POST /auth/register`, `POST /auth/login` (публичные, локальный логин/пароль)
   - `LocalAuthService` (`local-auth.service.ts`) — `register()` (bcrypt-хэш пароля, `User`+`Profile`+`Settings` одной вложенной записью — атомарно без явного `$transaction`, `409` при занятом `login`), `validateCredentials()` (поиск + `bcrypt.compare`, единый `401` независимо от того, что именно неверно)
-- Экспортирует `AuthService`/`JwtAuthGuard`/`JwtModule` — модули #18/#21/#22/#23 импортируют `AuthModule`, не настраивают JWT заново
+  - `GoogleAuthService` (`google-auth.service.ts`) — `authenticate()`: верификация ID-токена через `google-auth-library` (`OAuth2Client.verifyIdToken`, `audience = GOOGLE_CLIENT_ID`; без Client Secret — чистая ID-token-проверка, не authorization-code флоу), поиск по `googleId` → авто-связка по `Profile.email` (только если `email_verified === true`) → создание нового `User`+`Profile`+`Settings` (`login = googleId`, т.к. `User.login` обязателен, а у Google-пользователя своего login нет и он с ним не взаимодействует). Любая ошибка верификации токена — единый `401`.
+  - `UserWithProfile` (`types/user-with-profile.type.ts`) — общий тип `Prisma.UserGetPayload<{ include: { profile: true } }>`, переиспользуется `LocalAuthService`/`GoogleAuthService`
+- Экспортирует `AuthService`/`JwtAuthGuard`/`JwtModule` — модули #21/#22/#23 импортируют `AuthModule`, не настраивают JWT заново
 - `cookie-parser` подключён глобально в `src/main.ts` (`req.cookies`)
 
 ### ProfileModule
@@ -71,6 +73,7 @@
 - `POST /auth/logout` — `src/auth/auth.controller.ts` — публичный, сбрасывает auth-cookie
 - `POST /auth/register` — `src/auth/auth.controller.ts` — регистрация по логину/паролю, создаёт `User`+`Profile`+`Settings`, выдаёт сессионную cookie, `409` при занятом `login`
 - `POST /auth/login` — `src/auth/auth.controller.ts` — логин по логину/паролю, выдаёт сессионную cookie, `401` при неверных данных
+- `POST /auth/google` — `src/auth/auth.controller.ts` — приём Google ID-токена, find-or-create пользователя, выдаёт сессионную cookie, `401` при невалидном/просроченном токене
 - `GET /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, email }` собственного профиля
 - `PATCH /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, обновляет `email` собственного профиля
 - `GET /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, theme, receiveNotifications }` собственных настроек
@@ -81,6 +84,7 @@
 - `PrismaService` — `src/prisma/prisma.service.ts` — расширяет `PrismaClient`; `onModuleInit()` — `$connect()` + проверочный `SELECT 1`, `onModuleDestroy()` — `$disconnect()`; `DATABASE_URL` читается через `ConfigService.getOrThrow()`
 - `AuthService` — `src/auth/auth.service.ts` — см. AuthModule выше
 - `LocalAuthService` — `src/auth/local-auth.service.ts` — см. AuthModule выше
+- `GoogleAuthService` — `src/auth/google-auth.service.ts` — см. AuthModule выше
 - `ProfileService` — `src/profile/profile.service.ts` — см. ProfileModule выше
 - `SettingsService` — `src/settings/settings.service.ts` — см. SettingsModule выше
 
@@ -92,3 +96,4 @@
 - `CORS_ORIGIN` — разрешённый origin для CORS (dev Angular-сервер), по умолчанию `http://localhost:4200`; используется с `credentials: true` (нужно для cookie-based JWT); прод-origin'ы требуют отдельного пересмотра
 - `JWT_SECRET` — секрет подписи сессионных JWT, обязательный, минимум 32 символа
 - `JWT_EXPIRES_IN` — TTL access-токена, по умолчанию `7d`; также используется как `maxAge` auth-cookie
+- `GOOGLE_CLIENT_ID` — Google OAuth Client ID, обязательный, используется как `audience` при верификации ID-токена; реальное значение из `steramer.io#2` (issue ещё открыта на момент реализации — в `.env` временный плейсхолдер, не коммитится)
