@@ -16,6 +16,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `prisma-database-setup` (official, [prisma/skills](https://github.com/prisma/skills)) — configuring Prisma against a specific database provider, including MySQL/MariaDB (our provider).
 - `nestjs-best-practices` (community, [Kadajett/agent-nestjs-skills](https://github.com/Kadajett/agent-nestjs-skills)) — 40 rules across architecture, DI, error handling, security, performance, testing, database/ORM, API design, microservices, and DevOps for NestJS. Prefer these patterns over ad-hoc structure when writing or reviewing NestJS code.
 
+**Перед началом любой backend-задачи (планирование или реализация)** — сверить её тему со списком выше и явно вызвать подходящий скилл (инструмент Skill), если тема пересекается: работа с NestJS-модулями/DI/структурой — `nestjs-best-practices`; правки `schema.prisma`/миграции — `prisma-database-setup`; CLI-команды Prisma (`init`/`migrate`/`generate`/`studio`) — `prisma-cli`; запросы через Prisma Client (`findMany`, `where`, транзакции и т.п.) — `prisma-client-api`. Не полагаться на общие знания NestJS/Prisma из памяти модели, если релевантный скилл есть — он может фиксировать версии/паттерны, специфичные для установленных в проекте пакетов.
+
 ## Работа со схемой Prisma
 
 `prisma/schema.prisma` — schema-first источник истины для структуры БД: модели описываются в нём вручную, изменения в базу накатываются только через сгенерированные миграции (`npx prisma migrate dev` в разработке, `npx prisma migrate deploy` в CI/проде) — не через `prisma db push` (кроме одноразового локального прототипирования, не для закоммиченных изменений) и не через `prisma db pull`/интроспекцию существующей БД.
