@@ -30,6 +30,7 @@
 
 - `ValidationPipe` (глобальный, `src/main.ts`) — `whitelist`/`forbidNonWhitelisted`/`transform` включены для всех эндпоинтов
 - `AllExceptionsFilter` — `src/shared/filters/http-exception.filter.ts`, регистрируется через `APP_FILTER` в `AppModule`; единый формат ошибки для всего API — `ErrorResponseDto` (`src/shared/dto/error-response.dto.ts`): `statusCode`, `message` (`string | string[]`), `error`, `timestamp`, `path`. Зарегистрирован в Swagger как `extraModels` (без демо-эндпоинта — см. `src/main.ts`)
+- Конвенция пагинации/сортировки/фильтрации — `PaginationQueryDto` (`src/shared/dto/pagination-query.dto.ts`: `page`/`limit`/`sortBy`/`sortOrder`, наследуется feature-DTO для своих полей фильтра), `PaginationMetaDto` (`src/shared/dto/pagination-meta.dto.ts`), `buildPaginationMeta()` (`src/shared/pagination/paginate.ts`), `ApiPaginatedResponse()` decorator (`src/shared/decorators/api-paginated-response.decorator.ts`) — пример использования в README
 
 ## Эндпоинты
 

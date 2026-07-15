@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { APP_NAME, APP_VERSION } from './app-info';
 import { ErrorResponseDto } from './shared/dto/error-response.dto';
+import { PaginationMetaDto } from './shared/dto/pagination-meta.dto';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -37,7 +38,7 @@ async function bootstrap() {
         .setDescription('Backend API for the steramer.io project.')
         .setVersion(APP_VERSION)
         .build(),
-      { extraModels: [ErrorResponseDto] },
+      { extraModels: [ErrorResponseDto, PaginationMetaDto] },
     );
     SwaggerModule.setup('api/docs', app, document);
   }
