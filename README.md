@@ -101,6 +101,15 @@ CSRF: relies on `SameSite=Lax` as the primary defense — no separate CSRF token
 
 `cookie-parser` middleware is registered globally in `src/main.ts` so `req.cookies` is available everywhere.
 
+### Profile
+
+`ProfileModule` (`src/profile/`) — read/edit the current user's own profile, protected by `JwtAuthGuard` (imports `AuthModule` for that):
+
+- `GET /profile` — returns `{ id, userId, email }`.
+- `PATCH /profile` — updates `email` (the only editable field right now — `Profile` doesn't have more yet, see `prisma/schema.prisma`). Setting `email` back to `null` isn't supported here.
+
+No viewing/editing other users' profiles, no role-based restrictions (out of scope — see `streamer.API#21`).
+
 ### Code style
 
 - `npm run lint` — check only (ESLint + Prettier via `eslint-plugin-prettier`), fails on any issue

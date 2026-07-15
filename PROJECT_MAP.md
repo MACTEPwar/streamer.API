@@ -29,6 +29,15 @@
 - Экспортирует `AuthService`/`JwtAuthGuard`/`JwtModule` — модули #18/#21/#22/#23 импортируют `AuthModule`, не настраивают JWT заново
 - `cookie-parser` подключён глобально в `src/main.ts` (`req.cookies`)
 
+### ProfileModule
+- Путь: `src/profile/`
+- Назначение: `GET`/`PATCH /profile` — чтение/редактирование собственного профиля текущего пользователя. Только свой профиль (без просмотра чужих, без ролевых ограничений — вне scope #21).
+- Компоненты:
+  - `ProfileService` (`profile.service.ts`) — `findByUserId(userId)`, `update(userId, dto)` поверх `prisma.profile`
+  - `ProfileController` (`profile.controller.ts`) — защищён `JwtAuthGuard` (из `AuthModule`) на уровне контроллера
+- `imports: [AuthModule]` — нужен для DI-резолва `JwtAuthGuard` (сам guard зависит от `AuthService`)
+- Редактируемое поле пока только `email` (единственное поле `Profile` кроме id/userId на данный момент — см. схему #15); явный сброс `email` в `null` не поддержан (не требовалось AC)
+
 ## Модели данных (Prisma)
 
 - Путь схемы: `prisma/schema.prisma`, миграции в `prisma/migrations/`
@@ -52,12 +61,15 @@
 - `POST /auth/logout` — `src/auth/auth.controller.ts` — публичный, сбрасывает auth-cookie
 - `POST /auth/register` — `src/auth/auth.controller.ts` — регистрация по логину/паролю, создаёт `User`+`Profile`+`Settings`, выдаёт сессионную cookie, `409` при занятом `login`
 - `POST /auth/login` — `src/auth/auth.controller.ts` — логин по логину/паролю, выдаёт сессионную cookie, `401` при неверных данных
+- `GET /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, email }` собственного профиля
+- `PATCH /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, обновляет `email` собственного профиля
 
 ## Сервисы
 
 - `PrismaService` — `src/prisma/prisma.service.ts` — расширяет `PrismaClient`; `onModuleInit()` — `$connect()` + проверочный `SELECT 1`, `onModuleDestroy()` — `$disconnect()`; `DATABASE_URL` читается через `ConfigService.getOrThrow()`
 - `AuthService` — `src/auth/auth.service.ts` — см. AuthModule выше
 - `LocalAuthService` — `src/auth/local-auth.service.ts` — см. AuthModule выше
+- `ProfileService` — `src/profile/profile.service.ts` — см. ProfileModule выше
 
 ## Опции окружения / feature-флаги
 
