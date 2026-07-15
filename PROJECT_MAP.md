@@ -18,6 +18,14 @@
 - Путь: `src/health/`
 - Назначение: `GET /health` — liveness-check, без проверки БД (заметка на будущее)
 
+## Модели данных (Prisma)
+
+- Путь схемы: `prisma/schema.prisma`, миграции в `prisma/migrations/`
+- `Role` (enum) — `ADMIN` \| `MODERATOR` \| `USER`; "гость" — НЕ значение enum, а отсутствие валидной сессии/JWT
+- `User` — `id` (`String`, `cuid()`), `login` (unique), `passwordHash` (nullable — может не быть при чисто Google-аккаунте), `provider`/`googleId` (nullable, `googleId` unique — Google OAuth), `role` (default `USER`), `createdAt`/`updatedAt`
+- `Profile` — 1:1 с `User` (`userId` unique), `email` (nullable, не верифицируется, для связи/уведомлений и авто-связки Google по email)
+- `Settings` — 1:1 с `User` (`userId` unique), пока без доп. полей (задел под будущие пользовательские настройки)
+
 ## Эндпоинты
 
 - `GET /` — `src/app.controller.ts` — базовая информация о приложении (`{ name, version }`), пример аннотирования Swagger-декораторами
