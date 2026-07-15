@@ -12,3 +12,40 @@ generator client {
 datasource db {
   provider = "mysql"
 }
+
+enum Role {
+  ADMIN
+  MODERATOR
+  USER
+  // "Гость" — НЕ значение этого enum, а отсутствие валидной сессии/JWT.
+  // Не добавлять GUEST сюда — см. streamer.API#15 / steramer.io#1.
+}
+
+model User {
+  id           String   @id @default(cuid())
+  login        String   @unique
+  passwordHash String?
+  provider     String?
+  googleId     String?  @unique
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile  Profile?
+  settings Settings?
+}
+
+model Profile {
+  id     String  @id @default(cuid())
+  userId String  @unique
+  email  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Settings {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
