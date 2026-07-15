@@ -5,6 +5,9 @@
 # generated Prisma Client (regenerated via `prisma generate` / postinstall)
 /src/generated
 
+# uploaded files (local filesystem storage, see UploadModule)
+/uploads
+
 # Logs
 logs
 *.log

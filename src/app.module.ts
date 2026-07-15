@@ -9,6 +9,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { SettingsModule } from './settings/settings.module';
 import { AllExceptionsFilter } from './shared/filters/http-exception.filter';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AllExceptionsFilter } from './shared/filters/http-exception.filter';
     AuthModule,
     ProfileModule,
     SettingsModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [

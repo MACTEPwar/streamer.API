@@ -49,6 +49,17 @@
 - `imports: [AuthModule]` — нужен для DI-резолва `JwtAuthGuard`
 - Редактируемые поля: `theme` (`LIGHT`/`DARK`/`SYSTEM`), `receiveNotifications` (boolean). **Осознанное отступление от AC #23** — пункт «Не входит» issue исключал настройки уведомлений как отдельную фичу; `receiveNotifications` — простой флаг без детализации по типам уведомлений, добавлен по прямому решению пользователя (детализация по типам всё ещё отдельная будущая задача)
 
+### UploadModule
+- Путь: `src/upload/`
+- Назначение: `POST /upload` — приём файла (multipart), сохранение на локальную ФС сервера (`uploads/` в корне проекта, не в git), возврат публичного URL. Загрузка защищена `JwtAuthGuard`, отдача самих файлов по URL — публична, без авторизации (см. `useStaticAssets` в `src/main.ts`).
+- Компоненты:
+  - `UploadController` (`upload.controller.ts`) — `@UseInterceptors(FileInterceptor('file', multerOptions))`
+  - `multerOptions` (`upload.options.ts`) — `diskStorage` (имя файла — `randomUUID()` + расширение по MIME из `MIME_EXTENSION_MAP`, не по `originalname` клиента), `limits.fileSize`, `fileFilter` (allowlist MIME)
+  - Константы (`constants/upload.constant.ts`) — `UPLOADS_DIR`, `UPLOADS_URL_PREFIX = '/uploads'`, `MAX_UPLOAD_SIZE_BYTES = 5 МБ`, `MIME_EXTENSION_MAP` (allowlist: `image/jpeg`/`image/png`/`image/webp`)
+- `imports: [AuthModule]` — для DI-резолва `JwtAuthGuard`
+- Ошибки `multer` (превышение лимита размера, недопустимый тип файла) уже транслируются в корректные `HttpException` встроенным `transformException()` из `@nestjs/platform-express` (`FileInterceptor` вызывает его сам) — доп. обработка `MulterError` в `AllExceptionsFilter` не нужна, ошибки доходят как обычный `413`/`400`
+- Не входит (см. issue): привязка к полю аватара в `Profile` — это отдельная будущая задача, само поле в `Profile` не заводится
+
 ## Модели данных (Prisma)
 
 - Путь схемы: `prisma/schema.prisma`, миграции в `prisma/migrations/`
@@ -78,6 +89,8 @@
 - `PATCH /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, обновляет `email` собственного профиля
 - `GET /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, theme, receiveNotifications }` собственных настроек
 - `PATCH /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, обновляет `theme`/`receiveNotifications` собственных настроек
+- `POST /upload` — `src/upload/upload.controller.ts` — защищён `JwtAuthGuard`, принимает файл (multipart, поле `file`), возвращает `{ url }`; `400` при недопустимом типе/отсутствии файла, `413` при превышении лимита размера
+- `GET /uploads/*` — статика, `useStaticAssets` в `src/main.ts`, без авторизации на чтение
 
 ## Сервисы
 
