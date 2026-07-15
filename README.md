@@ -47,6 +47,12 @@ Loaded and validated at startup via `@nestjs/config` (`src/config/env.validation
 
 `GET /health` — `{ "status": "ok" }`, no auth required. Intended for docker-compose/CI healthchecks. No DB connectivity check yet (deliberately deferred — see `src/health/health.controller.ts`).
 
+### Error responses
+
+Все ошибки API приведены к единому формату глобальным `AllExceptionsFilter` (`src/shared/filters/`): `{ statusCode, message, error, timestamp, path }` (`message` — строка или массив строк для ошибок валидации). Схема — `ErrorResponseDto`, зарегистрирована в `/api/docs` (без отдельного демо-эндпоинта — покажет себя на первом реальном POST/PUT-эндпоинте).
+
+Валидация входных данных — глобальный `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`): неизвестные поля в теле запроса отклоняются, DTO должны использовать декораторы `class-validator`.
+
 ### Code style
 
 - `npm run lint` — check only (ESLint + Prettier via `eslint-plugin-prettier`), fails on any issue
