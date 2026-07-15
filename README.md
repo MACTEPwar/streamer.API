@@ -37,7 +37,7 @@ Loaded and validated at startup via `@nestjs/config` (`src/config/env.validation
 | `DATABASE_URL` | yes | — | MySQL connection string |
 | `NODE_ENV` | no | `development` | `development` \| `production` \| `test` |
 | `PORT` | no | `3000` | HTTP port |
-| `CORS_ORIGIN` | no | `http://localhost:4200` | Allowed dev origin (Angular dev server). **Not production-ready as-is** — needs review/reconfiguration for real deployment origins. |
+| `CORS_ORIGIN` | no | `http://localhost:4200` | Allowed dev origin (Angular dev server), used with `credentials: true` (required for cookie-based JWT auth — see `src/main.ts`). **Not production-ready as-is** — needs review/reconfiguration for real deployment origins. |
 
 ### API docs
 

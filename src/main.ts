@@ -10,7 +10,13 @@ async function bootstrap() {
 
   // CORS_ORIGIN is the dev Angular origin only; production origins must be
   // reviewed/reconfigured separately before a real deployment (see #5 scope).
-  app.enableCors({ origin: configService.get<string>('CORS_ORIGIN') });
+  // credentials: true is required for the cookie-based JWT auth flow (#16) —
+  // browsers reject wildcard origin with credentials, CORS_ORIGIN is always
+  // a specific value, never '*'.
+  app.enableCors({
+    origin: configService.get<string>('CORS_ORIGIN'),
+    credentials: true,
+  });
 
   if (configService.get<string>('NODE_ENV') !== 'production') {
     const document = SwaggerModule.createDocument(
