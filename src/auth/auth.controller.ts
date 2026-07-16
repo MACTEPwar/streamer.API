@@ -23,6 +23,7 @@ import { GoogleAuthDto } from './dto/google-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UserMeDto } from './dto/user-me.dto';
+import { UserEntity } from './entities/user.entity';
 import { GoogleAuthService } from './google-auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthService } from './local-auth.service';
@@ -95,10 +96,11 @@ export class AuthController {
   @ApiOkResponse({ type: UserMeDto })
   @ApiResponse({ status: 401, type: ErrorResponseDto })
   async me(@Req() req: Request): Promise<UserMeDto> {
-    const user = await this.prisma.user.findUniqueOrThrow({
+    const { profile, ...raw } = await this.prisma.user.findUniqueOrThrow({
       where: { id: req.user!.id },
       include: { profile: true },
     });
+    const user = Object.assign(new UserEntity(raw), { profile });
 
     return this.toUserMeDto(user);
   }
