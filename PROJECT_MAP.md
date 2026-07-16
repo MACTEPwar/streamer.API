@@ -24,6 +24,7 @@
 - Компоненты:
   - `AuthService` (`auth.service.ts`) — `issueToken({ sub, role })`, `setAuthCookie(res, token)`/`clearAuthCookie(res)` (атрибуты `HttpOnly`/`Secure`/`SameSite=Lax`, `maxAge` из реального `exp` токена), `verifyToken(token)`
   - `JwtAuthGuard` (`guards/jwt-auth.guard.ts`) — читает JWT из cookie `access_token`, кладёт `req.user = { id, role }`; применяется точечно через `@UseGuards()`, не глобально
+  - `RolesGuard`/`@Roles()` (`guards/roles.guard.ts`, `decorators/roles.decorator.ts`, #39) — ролевая проверка поверх `req.user.role` (кладёт `JwtAuthGuard`, поэтому в `@UseGuards()` порядок важен: `JwtAuthGuard` первым); без метаданных `@Roles()` пропускает всех, иначе `403` при несовпадении роли. Первое использование — `PATCH /schedule/:weekday` (только `ADMIN`)
   - `AuthController` (`auth.controller.ts`) — `GET /auth/me` (защищён), `POST /auth/logout` (публичный), `POST /auth/register`, `POST /auth/login` (публичные, локальный логин/пароль; throttled — см. ниже)
   - `LocalAuthService` (`local-auth.service.ts`) — `register()` (bcrypt-хэш пароля, `User`+`Profile`+`Settings` одной вложенной записью — атомарно без явного `$transaction`, `409` при занятом `login`), `validateCredentials()` (поиск + `bcrypt.compare`, единый `401` независимо от того, что именно неверно)
   - `GoogleAuthService` (`google-auth.service.ts`) — `authenticate()`: верификация ID-токена через `google-auth-library` (`OAuth2Client.verifyIdToken`, `audience = GOOGLE_CLIENT_ID`; без Client Secret — чистая ID-token-проверка, не authorization-code флоу), поиск по `googleId` → авто-связка по `Profile.email` (только если `email_verified === true`) → создание нового `User`+`Profile`+`Settings` (`login = googleId`, т.к. `User.login` обязателен, а у Google-пользователя своего login нет и он с ним не взаимодействует). Любая ошибка верификации токена — единый `401`.
@@ -31,7 +32,7 @@
   - Rate limiting (#27) — `POST /auth/register`/`POST /auth/login` защищены точечным `@UseGuards(ThrottlerGuard)` (`@nestjs/throttler`), не глобально (вне scope — остальные эндпоинты не троттлятся); лимит `AUTH_THROTTLE_LIMIT`/`AUTH_THROTTLE_TTL` (`constants/throttle.constant.ts`, сейчас 5 попыток/60с) задаётся один раз через `ThrottlerModule.forRoot()` в `AuthModule`, `POST /auth/google` намеренно не троттлится — верификация идёт через Google ID-токен (внешняя проверка, не локальный brute-force пароля). Превышение лимита — `429`, формат ошибки общий (`AllExceptionsFilter` перехватывает `ThrottlerException` как обычный `HttpException`), доп. код не потребовался. Storage — дефолтный in-memory (`ThrottlerStorageService`), без Redis (одна инстанция API, вне scope задачи)
   - `PrismaUserWithProfile` (`types/prisma-user-with-profile.type.ts`) — сырой тип `Prisma.UserGetPayload<{ include: { profile: true } }>`, промежуточный шаг до оборачивания в `UserEntity`
   - `UserWithProfile` (`types/user-with-profile.type.ts`) — `UserEntity & { profile: { email: string | null } | null }`, переиспользуется `LocalAuthService`/`GoogleAuthService`; `LocalAuthService`/`GoogleAuthService`/`AuthController.me()` оборачивают результат `prisma.user.*` в `UserEntity` перед возвратом наружу (защита от случайной утечки `passwordHash`/`googleId`, даже если будущий код вернёт сущность напрямую в обход `UserMeDto`)
-- Экспортирует `AuthService`/`JwtAuthGuard`/`JwtModule` — модули #21/#22/#23 импортируют `AuthModule`, не настраивают JWT заново
+- Экспортирует `AuthService`/`JwtAuthGuard`/`RolesGuard`/`JwtModule` — модули #21/#22/#23/#39 импортируют `AuthModule`, не настраивают JWT заново
 - `cookie-parser` подключён глобально в `src/main.ts` (`req.cookies`)
 
 ### ProfileModule
@@ -52,6 +53,16 @@
 - `imports: [AuthModule]` — нужен для DI-резолва `JwtAuthGuard`
 - Редактируемые поля: `theme` (`LIGHT`/`DARK`/`SYSTEM`), `receiveNotifications` (boolean). **Осознанное отступление от AC #23** — пункт «Не входит» issue исключал настройки уведомлений как отдельную фичу; `receiveNotifications` — простой флаг без детализации по типам уведомлений, добавлен по прямому решению пользователя (детализация по типам всё ещё отдельная будущая задача)
 
+### ScheduleModule
+- Путь: `src/schedule/`
+- Назначение: расписание стримов по дням недели для главной страницы (`main1.json`, слайд «Расписание») — ровно 7 строк (Пн-Вс), реально редактируемые ADMIN-ом данные, не статичный UI.
+- Компоненты:
+  - `ScheduleService` (`schedule.service.ts`) — `findAll()`: `prisma.schedule.findMany()` без `orderBy` + сортировка на уровне приложения по `WEEKDAY_ORDER` (`constants/weekday-order.constant.ts`) — не полагаемся на порядок `ENUM` в MySQL, хотя он и совпадает (MySQL `ENUM` сортируется по объявленному в колонке порядку, который Prisma генерирует в том же порядке, что в `schema.prisma`); `update(weekday, dto)` — `isOnline=false` в `dto` принудительно обнуляет `eventTitle`/`time` в записи независимо от того, что прислал клиент
+  - `ScheduleController` (`schedule.controller.ts`) — `GET /schedule` без guard'ов (публичный); `PATCH /schedule/:weekday` — `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(Role.ADMIN)`, `:weekday` валидируется `ParseEnumPipe(Weekday)` (`400` на невалидное значение)
+  - `UpdateScheduleDto` (`dto/update-schedule.dto.ts`) — `isOnline` **обязательное** поле (не `@IsOptional()`, в отличие от Profile/Settings) — именно оно решает, очищаются ли `eventTitle`/`time` в этом же запросе, поэтому итоговое значение должно быть известно однозначно, а не наследоваться из существующей записи; `eventTitle` (`@MaxLength(200)`), `time` (строка `HH:MM`, `@Matches`) — оба опциональны даже при `isOnline=true` (админ может включить день, не указав ещё конкретику)
+- `imports: [AuthModule]` — для DI-резолва `JwtAuthGuard`/`RolesGuard`
+- Не входит (см. issue #39): админ-UI управления расписанием (только API), роль `MODERATOR` для редактирования (решено — правит только `ADMIN`)
+
 ### UploadModule
 - Путь: `src/upload/`
 - Назначение: `POST /upload` — приём файла (multipart), сохранение на локальную ФС сервера (`uploads/` в корне проекта, не в git), возврат публичного URL. Загрузка защищена `JwtAuthGuard`, отдача самих файлов по URL — публична, без авторизации (см. `useStaticAssets` в `src/main.ts`).
@@ -65,7 +76,9 @@
 
 ## Сиды
 
-- `prisma/seed.ts` — идемпотентный сид дефолтного администратора (`role=ADMIN`), запускается `npx prisma db seed` (в Prisma 7 команда настраивается в `prisma.config.ts` → `migrations.seed`, раннер — `tsx`, не `ts-node` — см. `backend/CLAUDE.md`). Логин/пароль — из `SEED_ADMIN_LOGIN`/`SEED_ADMIN_PASSWORD` (только для сида, не для обычного старта приложения), пароль хэшируется тем же `BCRYPT_SALT_ROUNDS`, что и в `LocalAuthService.register()`. `upsert` по `login` (`update: {}`) — повторный запуск не создаёт дублей и не падает.
+- `prisma/seed.ts` — запускается `npx prisma db seed` (в Prisma 7 команда настраивается в `prisma.config.ts` → `migrations.seed`, раннер — `tsx`, не `ts-node` — см. `backend/CLAUDE.md`). Два независимых шага, оба идемпотентны (`upsert`):
+  - `seedSchedule()` (#39) — 7 дней недели (`WEEKDAY_ORDER`), дефолт `isOnline=false`; выполняется **всегда**, не зависит от admin-переменных окружения — `GET /schedule` публичный и должен отдавать 7 строк даже там, где сид администратора не запускался
+  - `seedAdmin()` — дефолтный администратор (`role=ADMIN`) по `SEED_ADMIN_LOGIN`/`SEED_ADMIN_PASSWORD` (только для сида, не для обычного старта приложения), пароль хэшируется тем же `BCRYPT_SALT_ROUNDS`, что и в `LocalAuthService.register()`; при отсутствии этих переменных скрипт по-прежнему завершается `process.exit(1)` (поведение #20 не менялось) — но уже после того, как `seedSchedule()` успела отработать
 
 ## Модели данных (Prisma)
 
@@ -75,6 +88,8 @@
 - `User` — `id` (`String`, `cuid()`), `login` (unique), `passwordHash` (nullable — может не быть при чисто Google-аккаунте), `provider`/`googleId` (nullable, `googleId` unique — Google OAuth), `role` (default `USER`), `createdAt`/`updatedAt`
 - `Profile` — 1:1 с `User` (`userId` unique), `email` (nullable, не верифицируется, для связи/уведомлений и авто-связки Google по email)
 - `Settings` — 1:1 с `User` (`userId` unique), `theme` (default `SYSTEM`), `receiveNotifications` (`Boolean`, default `true`)
+- `Weekday` (enum, #39) — `MONDAY`…`SUNDAY`
+- `Schedule` (#39) — ровно 7 строк (по одной на `weekday`, `@unique`), `isOnline` (default `false`), `eventTitle`/`time` (оба nullable, `time` — строка `HH:MM`, заполняются только когда `isOnline=true`)
 
 ## Глобальная инфраструктура
 
@@ -99,6 +114,8 @@
 - `PATCH /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, обновляет `theme`/`receiveNotifications` собственных настроек
 - `POST /upload` — `src/upload/upload.controller.ts` — защищён `JwtAuthGuard`, принимает файл (multipart, поле `file`), возвращает `{ url }`; `400` при недопустимом типе/отсутствии файла, `413` при превышении лимита размера
 - `GET /uploads/*` — статика, `useStaticAssets` в `src/main.ts`, без авторизации на чтение
+- `GET /schedule` — `src/schedule/schedule.controller.ts` — публичный, возвращает все 7 дней недели в порядке Пн→Вс
+- `PATCH /schedule/:weekday` — `src/schedule/schedule.controller.ts` — защищён `JwtAuthGuard` + `RolesGuard(ADMIN)`, обновляет один день; `401` без сессии, `403` не-ADMIN, `400` невалидный `:weekday`
 
 ## Сервисы
 
@@ -108,6 +125,7 @@
 - `GoogleAuthService` — `src/auth/google-auth.service.ts` — см. AuthModule выше
 - `ProfileService` — `src/profile/profile.service.ts` — см. ProfileModule выше
 - `SettingsService` — `src/settings/settings.service.ts` — см. SettingsModule выше
+- `ScheduleService` — `src/schedule/schedule.service.ts` — см. ScheduleModule выше
 
 ## Опции окружения / feature-флаги
 

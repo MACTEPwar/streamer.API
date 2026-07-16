@@ -57,3 +57,21 @@ model Settings {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+enum Weekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+model Schedule {
+  id         String  @id @default(cuid())
+  weekday    Weekday @unique
+  isOnline   Boolean @default(false)
+  eventTitle String?
+  time       String?
+}
