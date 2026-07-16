@@ -11,6 +11,7 @@ import {
 } from './constants/throttle.constant';
 import { GoogleAuthService } from './google-auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
 import { LocalAuthService } from './local-auth.service';
 
 @Module({
@@ -35,10 +36,11 @@ import { LocalAuthService } from './local-auth.service';
   providers: [
     AuthService,
     JwtAuthGuard,
+    RolesGuard,
     LocalAuthService,
     GoogleAuthService,
     ThrottlerGuard,
   ],
-  exports: [AuthService, JwtAuthGuard, JwtModule],
+  exports: [AuthService, JwtAuthGuard, RolesGuard, JwtModule],
 })
 export class AuthModule {}

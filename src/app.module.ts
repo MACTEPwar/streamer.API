@@ -7,6 +7,7 @@ import { envValidationSchema } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
+import { ScheduleModule } from './schedule/schedule.module';
 import { SettingsModule } from './settings/settings.module';
 import { AllExceptionsFilter } from './shared/filters/http-exception.filter';
 import { UploadModule } from './upload/upload.module';
@@ -21,6 +22,7 @@ import { UploadModule } from './upload/upload.module';
     HealthModule,
     AuthModule,
     ProfileModule,
+    ScheduleModule,
     SettingsModule,
     UploadModule,
   ],
