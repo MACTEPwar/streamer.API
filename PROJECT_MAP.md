@@ -60,6 +60,10 @@
 - Ошибки `multer` (превышение лимита размера, недопустимый тип файла) уже транслируются в корректные `HttpException` встроенным `transformException()` из `@nestjs/platform-express` (`FileInterceptor` вызывает его сам) — доп. обработка `MulterError` в `AllExceptionsFilter` не нужна, ошибки доходят как обычный `413`/`400`
 - Не входит (см. issue): привязка к полю аватара в `Profile` — это отдельная будущая задача, само поле в `Profile` не заводится
 
+## Сиды
+
+- `prisma/seed.ts` — идемпотентный сид дефолтного администратора (`role=ADMIN`), запускается `npx prisma db seed` (в Prisma 7 команда настраивается в `prisma.config.ts` → `migrations.seed`, раннер — `tsx`, не `ts-node` — см. `backend/CLAUDE.md`). Логин/пароль — из `SEED_ADMIN_LOGIN`/`SEED_ADMIN_PASSWORD` (только для сида, не для обычного старта приложения), пароль хэшируется тем же `BCRYPT_SALT_ROUNDS`, что и в `LocalAuthService.register()`. `upsert` по `login` (`update: {}`) — повторный запуск не создаёт дублей и не падает.
+
 ## Модели данных (Prisma)
 
 - Путь схемы: `prisma/schema.prisma`, миграции в `prisma/migrations/`
@@ -110,3 +114,4 @@
 - `JWT_SECRET` — секрет подписи сессионных JWT, обязательный, минимум 32 символа
 - `JWT_EXPIRES_IN` — TTL access-токена, по умолчанию `7d`; также используется как `maxAge` auth-cookie
 - `GOOGLE_CLIENT_ID` — Google OAuth Client ID, обязательный, используется как `audience` при верификации ID-токена; реальное значение из `steramer.io#2` (issue ещё открыта на момент реализации — в `.env` временный плейсхолдер, не коммитится)
+- `SEED_ADMIN_LOGIN`/`SEED_ADMIN_PASSWORD` — креды дефолтного администратора; нужны только при запуске `npx prisma db seed` (см. «Сиды»), **не** валидируются `env.validation.ts` и не обязательны для обычного старта приложения

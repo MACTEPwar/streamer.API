@@ -28,6 +28,8 @@ npm run test:e2e        # e2e tests
 
 Requires a running MySQL server reachable at the `DATABASE_URL` set in `.env` (format: `mysql://USER:PASSWORD@HOST:PORT/DATABASE`). The database itself must already exist — Prisma does not create it. `PrismaService` (`src/prisma/`) connects on app startup; no domain schema/models yet (see `prisma/schema.prisma`).
 
+**Seeding:** `npx prisma db seed` runs `prisma/seed.ts` — idempotent, creates one default admin user (`role=ADMIN`) if a user with `SEED_ADMIN_LOGIN` doesn't already exist. Needs `SEED_ADMIN_LOGIN`/`SEED_ADMIN_PASSWORD` set (only for this command, not for a normal app start — the app itself doesn't require or validate them). The command comes from `prisma.config.ts` (`migrations.seed`) — Prisma 7 doesn't read `package.json`'s `prisma.seed` field anymore; the runner is `tsx`, not `ts-node` (`ts-node` can't resolve the generated Prisma Client's relative imports in this project).
+
 ### Environment variables
 
 Loaded and validated at startup via `@nestjs/config` (`src/config/env.validation.ts`) — the app **refuses to start** with a clear error if a required variable is missing or invalid, rather than silently continuing with `undefined`.
