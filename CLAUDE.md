@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `prisma/schema.prisma` — schema-first источник истины для структуры БД: модели описываются в нём вручную, изменения в базу накатываются только через сгенерированные миграции (`npx prisma migrate dev` в разработке, `npx prisma migrate deploy` в CI/проде) — не через `prisma db push` (кроме одноразового локального прототипирования, не для закоммиченных изменений) и не через `prisma db pull`/интроспекцию существующей БД.
 
-Сид-данные — отдельный скрипт (`prisma/seed.ts`, подключённый через `package.json` → `prisma.seed`), идемпотентный (повторный запуск не создаёт дублей).
+Сид-данные — отдельный скрипт (`prisma/seed.ts`), идемпотентный (повторный запуск не создаёт дублей). В Prisma 7 (используется в этом репо) команда сида настраивается в `prisma.config.ts` (`migrations.seed`), а не в `package.json` → `prisma.seed` (это устаревшая конвенция Prisma ≤5; `npx prisma db seed --help` явно печатает `Loaded Prisma config from prisma.config.ts`). Раннер — `tsx`, не `ts-node`: `ts-node` (даже с CommonJS-override компилятора) не резолвит относительные импорты сгенерированного Prisma Client (`nodenext`-стиль путей с `.js`-расширениями), `tsx` — резолвит без проблем.
 
 ## Параллельная работа (git worktree)
 
