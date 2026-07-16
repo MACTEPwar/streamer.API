@@ -1,9 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { SignOptions } from 'jsonwebtoken';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import {
+  AUTH_THROTTLE_LIMIT,
+  AUTH_THROTTLE_TTL,
+} from './constants/throttle.constant';
 import { GoogleAuthService } from './google-auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthService } from './local-auth.service';
@@ -22,9 +27,18 @@ import { LocalAuthService } from './local-auth.service';
         },
       }),
     }),
+    ThrottlerModule.forRoot([
+      { ttl: AUTH_THROTTLE_TTL, limit: AUTH_THROTTLE_LIMIT },
+    ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, LocalAuthService, GoogleAuthService],
+  providers: [
+    AuthService,
+    JwtAuthGuard,
+    LocalAuthService,
+    GoogleAuthService,
+    ThrottlerGuard,
+  ],
   exports: [AuthService, JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}

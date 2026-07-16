@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { Role } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -47,8 +48,10 @@ describe('AuthController', () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 5 }])],
       controllers: [AuthController],
       providers: [
+        ThrottlerGuard,
         { provide: AuthService, useValue: authService },
         { provide: LocalAuthService, useValue: localAuthService },
         { provide: GoogleAuthService, useValue: googleAuthService },
