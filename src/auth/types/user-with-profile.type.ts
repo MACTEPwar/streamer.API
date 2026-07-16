@@ -1,5 +1,5 @@
-import { Prisma } from '../../generated/prisma/client';
+import { UserEntity } from '../entities/user.entity';
 
-export type UserWithProfile = Prisma.UserGetPayload<{
-  include: { profile: true };
-}>;
+export type UserWithProfile = UserEntity & {
+  profile: { email: string | null } | null;
+};

@@ -9,6 +9,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BCRYPT_SALT_ROUNDS } from './constants/password.constant';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { UserEntity } from './entities/user.entity';
+import { PrismaUserWithProfile } from './types/prisma-user-with-profile.type';
 import { UserWithProfile } from './types/user-with-profile.type';
 
 const INVALID_CREDENTIALS_MESSAGE = 'Неверный логин или пароль';
@@ -21,7 +23,7 @@ export class LocalAuthService {
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
 
     try {
-      return await this.prisma.user.create({
+      const user = await this.prisma.user.create({
         data: {
           login: dto.login,
           passwordHash,
@@ -31,6 +33,7 @@ export class LocalAuthService {
         },
         include: { profile: true },
       });
+      return this.toUserWithProfile(user);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -61,6 +64,13 @@ export class LocalAuthService {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
 
-    return user;
+    return this.toUserWithProfile(user);
+  }
+
+  private toUserWithProfile({
+    profile,
+    ...user
+  }: PrismaUserWithProfile): UserWithProfile {
+    return Object.assign(new UserEntity(user), { profile });
   }
 }

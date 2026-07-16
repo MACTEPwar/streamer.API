@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleAuthDto } from './dto/google-auth.dto';
+import { UserEntity } from './entities/user.entity';
+import { PrismaUserWithProfile } from './types/prisma-user-with-profile.type';
 import { UserWithProfile } from './types/user-with-profile.type';
 
 const INVALID_TOKEN_MESSAGE = 'Невалидный или просроченный Google-токен';
@@ -29,7 +31,7 @@ export class GoogleAuthService {
       include: { profile: true },
     });
     if (existingByGoogleId) {
-      return existingByGoogleId;
+      return this.toUserWithProfile(existingByGoogleId);
     }
 
     if (payload.email && payload.email_verified) {
@@ -38,15 +40,16 @@ export class GoogleAuthService {
         include: { profile: true },
       });
       if (existingByEmail) {
-        return this.prisma.user.update({
+        const updated = await this.prisma.user.update({
           where: { id: existingByEmail.id },
           data: { googleId },
           include: { profile: true },
         });
+        return this.toUserWithProfile(updated);
       }
     }
 
-    return this.prisma.user.create({
+    const created = await this.prisma.user.create({
       data: {
         login: googleId,
         googleId,
@@ -56,6 +59,14 @@ export class GoogleAuthService {
       },
       include: { profile: true },
     });
+    return this.toUserWithProfile(created);
+  }
+
+  private toUserWithProfile({
+    profile,
+    ...user
+  }: PrismaUserWithProfile): UserWithProfile {
+    return Object.assign(new UserEntity(user), { profile });
   }
 
   private async verifyToken(idToken: string) {
