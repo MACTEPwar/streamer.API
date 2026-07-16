@@ -15,6 +15,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErrorResponseDto } from '../shared/dto/error-response.dto';
@@ -39,8 +40,10 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @UseGuards(ThrottlerGuard)
   @ApiCreatedResponse({ type: UserMeDto })
   @ApiResponse({ status: 409, type: ErrorResponseDto })
+  @ApiResponse({ status: 429, type: ErrorResponseDto })
   async register(
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
@@ -57,8 +60,10 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
   @ApiOkResponse({ type: UserMeDto })
   @ApiResponse({ status: 401, type: ErrorResponseDto })
+  @ApiResponse({ status: 429, type: ErrorResponseDto })
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
