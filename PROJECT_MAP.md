@@ -63,6 +63,16 @@
 - `imports: [AuthModule]` — для DI-резолва `JwtAuthGuard`/`RolesGuard`
 - Не входит (см. issue #39): админ-UI управления расписанием (только API), роль `MODERATOR` для редактирования (решено — правит только `ADMIN`)
 
+### DonatorsModule
+- Путь: `src/donators/`
+- Назначение: топ-донатеров для главной страницы (`main2.json`) — до 5 записей (ник + сумма). Источник — внешний сервис доната, провайдер **пока не выбран**; реализовано портом/адаптером, чтобы подключить реальный провайдер позже без изменений в `DonatorsService`/`DonatorsController` (#40).
+- Компоненты:
+  - `DonatorsProvider` (`interfaces/donators-provider.interface.ts`) — интерфейс порта `getTop(): Promise<DonatorRecord[]>` (`DonatorRecord = { nickname, amount: number | null }` — сырые, возможно неполные данные) + `DONATORS_PROVIDER` — Symbol-токен для DI (интерфейсы стираются на рантайме — см. `nestjs-best-practices` skill)
+  - `MockDonatorsProvider` (`providers/mock-donators.provider.ts`) — текущая реализация порта, фикстура из 5 записей, одна намеренно с `amount: null` (демонстрирует обработку неполных данных)
+  - `DonatorsService` (`donators.service.ts`) — `getTop()`: получает сырые записи через `DONATORS_PROVIDER` (не зависит от `MockDonatorsProvider` напрямую), отфильтровывает невалидные (`amount` не положительное конечное число, пустой `nickname`), сортирует по убыванию суммы, обрезает до `TOP_DONATORS_LIMIT` (`constants/top-donators-limit.constant.ts`, `= 5`)
+  - `DonatorsController` (`donators.controller.ts`) — `GET /donators/top`, публичный, без guard'ов
+- Не входит (см. issue #40): реальная интеграция с конкретным провайдером — только мок + env-плейсхолдер; пагинация (список всегда ≤5)
+
 ### UploadModule
 - Путь: `src/upload/`
 - Назначение: `POST /upload` — приём файла (multipart), сохранение на локальную ФС сервера (`uploads/` в корне проекта, не в git), возврат публичного URL. Загрузка защищена `JwtAuthGuard`, отдача самих файлов по URL — публична, без авторизации (см. `useStaticAssets` в `src/main.ts`).
@@ -114,6 +124,7 @@
 - `PATCH /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, обновляет `theme`/`receiveNotifications` собственных настроек
 - `POST /upload` — `src/upload/upload.controller.ts` — защищён `JwtAuthGuard`, принимает файл (multipart, поле `file`), возвращает `{ url }`; `400` при недопустимом типе/отсутствии файла, `413` при превышении лимита размера
 - `GET /uploads/*` — статика, `useStaticAssets` в `src/main.ts`, без авторизации на чтение
+- `GET /donators/top` — `src/donators/donators.controller.ts` — публичный, до 5 донатеров (`{ nickname, amount }`), отсортированы по убыванию суммы
 - `GET /schedule` — `src/schedule/schedule.controller.ts` — публичный, возвращает все 7 дней недели в порядке Пн→Вс
 - `PATCH /schedule/:weekday` — `src/schedule/schedule.controller.ts` — защищён `JwtAuthGuard` + `RolesGuard(ADMIN)`, обновляет один день; `401` без сессии, `403` не-ADMIN, `400` невалидный `:weekday`
 
@@ -125,6 +136,7 @@
 - `GoogleAuthService` — `src/auth/google-auth.service.ts` — см. AuthModule выше
 - `ProfileService` — `src/profile/profile.service.ts` — см. ProfileModule выше
 - `SettingsService` — `src/settings/settings.service.ts` — см. SettingsModule выше
+- `DonatorsService` — `src/donators/donators.service.ts` — см. DonatorsModule выше
 - `ScheduleService` — `src/schedule/schedule.service.ts` — см. ScheduleModule выше
 
 ## Опции окружения / feature-флаги
@@ -136,4 +148,5 @@
 - `JWT_SECRET` — секрет подписи сессионных JWT, обязательный, минимум 32 символа
 - `JWT_EXPIRES_IN` — TTL access-токена, по умолчанию `7d`; также используется как `maxAge` auth-cookie
 - `GOOGLE_CLIENT_ID` — Google OAuth Client ID, обязательный, используется как `audience` при верификации ID-токена; реальное значение из `steramer.io#2` (issue ещё открыта на момент реализации — в `.env` временный плейсхолдер, не коммитится)
+- `DONATOR_SERVICE_TOKEN` — токен доступа к внешнему сервису доната, опциональный (валидация `Joi.string().optional()`); `MockDonatorsProvider` (#40) его не читает — заведён заранее для реального провайдера, который подключится позже
 - `SEED_ADMIN_LOGIN`/`SEED_ADMIN_PASSWORD` — креды дефолтного администратора; нужны только при запуске `npx prisma db seed` (см. «Сиды»), **не** валидируются `env.validation.ts` и не обязательны для обычного старта приложения
