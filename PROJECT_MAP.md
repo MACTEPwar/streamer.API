@@ -144,7 +144,7 @@
 - `DATABASE_URL` — строка подключения к MySQL (`mysql://USER:PASSWORD@HOST:PORT/DATABASE`), обязательная, валидируется `src/config/env.validation.ts`
 - `NODE_ENV` — `development` \| `production` \| `test`, по умолчанию `development`
 - `PORT` — HTTP-порт приложения, по умолчанию `3000`
-- `CORS_ORIGIN` — разрешённый origin для CORS (dev Angular-сервер), по умолчанию `http://localhost:4200`; используется с `credentials: true` (нужно для cookie-based JWT); прод-origin'ы требуют отдельного пересмотра
+- `CORS_ORIGIN` — разрешённый origin для CORS (dev Angular-сервер), по умолчанию `http://localhost:4210`; используется с `credentials: true` (нужно для cookie-based JWT); прод-origin'ы требуют отдельного пересмотра
 - `JWT_SECRET` — секрет подписи сессионных JWT, обязательный, минимум 32 символа
 - `JWT_EXPIRES_IN` — TTL access-токена, по умолчанию `7d`; также используется как `maxAge` auth-cookie
 - `GOOGLE_CLIENT_ID` — Google OAuth Client ID, обязательный, используется как `audience` при верификации ID-токена; реальное значение из `steramer.io#2` (issue ещё открыта на момент реализации — в `.env` временный плейсхолдер, не коммитится)
