@@ -141,7 +141,7 @@
 
 ## Опции окружения / feature-флаги
 
-- `DATABASE_URL` — строка подключения к MySQL (`mysql://USER:PASSWORD@HOST:PORT/DATABASE`), обязательная, валидируется `src/config/env.validation.ts`
+- `DATABASE_URL` — строка подключения к MySQL (`mysql://USER:PASSWORD@HOST:PORT/DATABASE?allowPublicKeyRetrieval=true`), обязательная, валидируется `src/config/env.validation.ts`. **`allowPublicKeyRetrieval=true` обязателен** для MySQL 8+ аккаунтов с `caching_sha2_password` (дефолтный auth-plugin) без SSL — без него JS-драйвер `mariadb` (используется `PrismaService`/`prisma/seed.ts` через `@prisma/adapter-mariadb`) отказывается запрашивать RSA-ключ и приложение падает с pool timeout при старте, хотя `npx prisma migrate`/`db seed` (свой Rust-движок Prisma) при этом подключаются нормально — путаница при диагностике
 - `NODE_ENV` — `development` \| `production` \| `test`, по умолчанию `development`
 - `PORT` — HTTP-порт приложения, по умолчанию `3000`
 - `CORS_ORIGIN` — разрешённый origin для CORS (dev Angular-сервер), по умолчанию `http://localhost:4210`; используется с `credentials: true` (нужно для cookie-based JWT); прод-origin'ы требуют отдельного пересмотра
