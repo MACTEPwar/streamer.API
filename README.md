@@ -39,7 +39,7 @@ Loaded and validated at startup via `@nestjs/config` (`src/config/env.validation
 | `DATABASE_URL` | yes | — | MySQL connection string |
 | `NODE_ENV` | no | `development` | `development` \| `production` \| `test` |
 | `PORT` | no | `3000` | HTTP port |
-| `CORS_ORIGIN` | no | `http://localhost:4210` | Allowed dev origin (Angular dev server), used with `credentials: true` (required for cookie-based JWT auth — see `src/main.ts`). **Not production-ready as-is** — needs review/reconfiguration for real deployment origins. |
+| `CORS_ORIGIN` | no | `http://localhost:4200` | Allowed dev origin (Angular dev server), used with `credentials: true` (required for cookie-based JWT auth — see `src/main.ts`). **Not production-ready as-is** — needs review/reconfiguration for real deployment origins. |
 | `JWT_SECRET` | yes | — | Signing secret for session JWTs, min. 32 chars. Never commit a real value — `.env` is gitignored, `.env.example` only has a placeholder. |
 | `JWT_EXPIRES_IN` | no | `7d` | Access-token TTL (any `jsonwebtoken`-compatible duration string), also used as the auth cookie's `maxAge`. |
 | `GOOGLE_CLIENT_ID` | yes | — | Google OAuth Client ID, used as the `audience` when verifying Google ID tokens. Real value comes from `steramer.io#2` (still open as of this writing) — `.env` currently has a placeholder; swap it in once real credentials exist. |
