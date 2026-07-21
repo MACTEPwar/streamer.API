@@ -13,11 +13,15 @@ describe('MockDonatorsProvider', () => {
     });
   });
 
-  it('includes at least one incomplete record (null amount)', async () => {
+  it('resolves exactly 5 records, all with a positive amount', async () => {
     const provider = new MockDonatorsProvider();
 
     const records = await provider.getTop();
 
-    expect(records.some((record) => record.amount === null)).toBe(true);
+    expect(records).toHaveLength(5);
+    records.forEach((record) => {
+      expect(typeof record.amount).toBe('number');
+      expect(record.amount as number).toBeGreaterThan(0);
+    });
   });
 });

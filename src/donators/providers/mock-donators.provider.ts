@@ -5,11 +5,11 @@ import {
 } from '../interfaces/donators-provider.interface';
 
 const FIXTURE: DonatorRecord[] = [
-  { nickname: 'shadowfox', amount: 5000 },
-  { nickname: 'nightwolf', amount: 2500 },
-  { nickname: 'ghostrider', amount: null },
-  { nickname: 'ironclad', amount: 1200 },
-  { nickname: 'silentstorm', amount: 800 },
+  { nickname: 'Лексик.З', amount: 79816 },
+  { nickname: '-=AnGeL=-', amount: 18850 },
+  { nickname: 'Михайло', amount: 17319 },
+  { nickname: 'D.I.G.G.I', amount: 11160 },
+  { nickname: 'D.I.I.G.I', amount: 5000 },
 ];
 
 /**
