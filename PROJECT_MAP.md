@@ -37,7 +37,7 @@
 
 ### ProfileModule
 - Путь: `src/profile/`
-- Назначение: `GET`/`PATCH /profile` + `PATCH /profile/avatar` — чтение/редактирование собственного профиля текущего пользователя (email/имя/аватар). Только свой профиль (без просмотра чужих, без ролевых ограничений — вне scope #21/#49). Также включает вложенный `game-accounts/` (#47) — CRUD игровых аккаунтов текущего пользователя.
+- Назначение: `GET`/`PATCH /profile` + `PATCH /profile/avatar` — чтение/редактирование собственного профиля текущего пользователя (email/имя/аватар). Только свой профиль (без просмотра чужих, без ролевых ограничений — вне scope #21/#49). Также включает вложенные `game-accounts/` (#47) — CRUD игровых аккаунтов, и `social-link/` (#48) — CRUD соц-сетей текущего пользователя.
 - Компоненты:
   - `ProfileService` (`profile.service.ts`) — `findByUserId(userId)`, `update(userId, dto)` (email/name), `updateAvatar(userId, dto)` (avatarUrl) поверх `prisma.profile`
   - `ProfileController` (`profile.controller.ts`) — защищён `JwtAuthGuard` (из `AuthModule`) на уровне контроллера
@@ -46,6 +46,9 @@
   - `GameAccountService` (`game-account/game-account.service.ts`, #47) — `findAllByUserId(userId)`, `create(userId, dto)`, `update(userId, id, dto)`/`remove(userId, id)` поверх `prisma.gameAccount`; `update`/`remove` идут через приватный `assertOwnership(userId, id)` — сначала `findUnique`, `404` (`NotFoundException`) если записи нет, `403` (`ForbiddenException`) если `record.userId !== userId` — первый в проекте паттерн ownership-проверки на чужой ресурс, ориентир для будущих CRUD с похожей семантикой (например `SocialLink`)
   - `GameAccountController` (`game-account/game-account.controller.ts`, #47) — `@Controller('profile/game-accounts')`, защищён тем же `JwtAuthGuard`, зарегистрирован в `ProfileModule` (не отдельный модуль — вложенность в `/profile` предполагает общий модуль)
   - `CreateGameAccountDto`/`UpdateGameAccountDto` (`game-account/dto/`, #47) — `nickname`/`externalId`, оба `@IsString() @IsNotEmpty() @MaxLength()`; в update-варианте — те же правила плюс `@IsOptional()` (частичное обновление, но без разрешения сброса в пустую строку)
+  - `SocialLinkService` (`social-link/social-link.service.ts`, #48) — `findAllByUserId(userId)`, `create(userId, dto)`, `update(userId, id, dto)`/`remove(userId, id)` поверх `prisma.socialLink`; тот же паттерн `assertOwnership(userId, id)`, что в `GameAccountService` (404/403), повторён отдельно (не абстрагирован в общую утилиту — консистентность важнее DRY на этом этапе)
+  - `SocialLinkController` (`social-link/social-link.controller.ts`, #48) — `@Controller('profile/social-links')`, защищён тем же `JwtAuthGuard`, зарегистрирован в `ProfileModule`
+  - `CreateSocialLinkDto`/`UpdateSocialLinkDto` (`social-link/dto/`, #48) — `type` (`@IsEnum(SocialLinkType)`, импорт из `../../generated/prisma/enums`, как `Theme`/`Weekday`), `value` (`@IsString() @IsNotEmpty() @MaxLength(255)`); update-вариант — те же правила плюс `@IsOptional()`
 - `imports: [AuthModule]` — нужен для DI-резолва `JwtAuthGuard` (сам guard зависит от `AuthService`)
 - Редактируемые поля: `email`/`name` через `PATCH /profile`, `avatarUrl` — отдельным `PATCH /profile/avatar` (#49, привязка к аватару из issue #22/#46 закрыта); явный сброс `email`/`name`/`avatarUrl` в `null` не поддержан (не требовалось AC)
 
@@ -107,7 +110,7 @@
 - `Schedule` (#39) — ровно 7 строк (по одной на `weekday`, `@unique`), `isOnline` (default `false`), `eventTitle`/`time` (оба nullable, `time` — строка `HH:MM`, заполняются только когда `isOnline=true`)
 - `SocialLinkType` (enum, #46) — `EMAIL` \| `TELEGRAM` \| `TIKTOK` \| `PHONE` \| `VIBER`
 - `GameAccount` (#46) — 1:N с `User` (`userId`, `onDelete: Cascade`, без `@unique` — пользователь может иметь несколько игровых аккаунтов), `nickname` (`String`), `externalId` (`String` — id аккаунта в игре, намеренно не `id`, чтобы не путать с PK строки), `createdAt`/`updatedAt`; CRUD API — `GameAccountModule` (см. ProfileModule выше, #47)
-- `SocialLink` (#46) — 1:N с `User` (`userId`, `onDelete: Cascade`), `type` (`SocialLinkType`), `value` (`String`, произвольный формат — валидация под конкретный `type` не входит в #46); без API-эндпоинтов пока — только модель данных (issue #46)
+- `SocialLink` (#46) — 1:N с `User` (`userId`, `onDelete: Cascade`), `type` (`SocialLinkType`), `value` (`String`, произвольный формат — валидация под конкретный `type` не входит в #46/#48, только длина/непустота); CRUD API — `SocialLinkController`/`SocialLinkService` (см. ProfileModule выше, #48)
 
 ## Глобальная инфраструктура
 
@@ -133,6 +136,10 @@
 - `POST /profile/game-accounts` — `src/profile/game-account/game-account.controller.ts` (#47) — защищён `JwtAuthGuard`, создаёт игровой аккаунт (`nickname`, `externalId`) для текущего пользователя
 - `PATCH /profile/game-accounts/:id` — `src/profile/game-account/game-account.controller.ts` (#47) — защищён `JwtAuthGuard`, обновляет собственный игровой аккаунт; `403` при попытке править чужой, `404` если `:id` не существует
 - `DELETE /profile/game-accounts/:id` — `src/profile/game-account/game-account.controller.ts` (#47) — защищён `JwtAuthGuard`, удаляет собственный игровой аккаунт; `403` при попытке удалить чужой, `404` если `:id` не существует
+- `GET /profile/social-links` — `src/profile/social-link/social-link.controller.ts` (#48) — защищён `JwtAuthGuard`, список собственных соц-сетей
+- `POST /profile/social-links` — `src/profile/social-link/social-link.controller.ts` (#48) — защищён `JwtAuthGuard`, создаёт соц-сеть (`type`, `value`) для текущего пользователя
+- `PATCH /profile/social-links/:id` — `src/profile/social-link/social-link.controller.ts` (#48) — защищён `JwtAuthGuard`, обновляет собственную соц-сеть; `403` при попытке править чужую, `404` если `:id` не существует
+- `DELETE /profile/social-links/:id` — `src/profile/social-link/social-link.controller.ts` (#48) — защищён `JwtAuthGuard`, удаляет собственную соц-сеть; `403` при попытке удалить чужую, `404` если `:id` не существует
 - `GET /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, theme, receiveNotifications }` собственных настроек
 - `PATCH /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, обновляет `theme`/`receiveNotifications` собственных настроек
 - `POST /upload` — `src/upload/upload.controller.ts` — защищён `JwtAuthGuard`, принимает файл (multipart, поле `file`), возвращает `{ url }`; `400` при недопустимом типе/отсутствии файла, `413` при превышении лимита размера
@@ -149,6 +156,7 @@
 - `GoogleAuthService` — `src/auth/google-auth.service.ts` — см. AuthModule выше
 - `ProfileService` — `src/profile/profile.service.ts` — см. ProfileModule выше
 - `GameAccountService` — `src/profile/game-account/game-account.service.ts` — см. ProfileModule выше
+- `SocialLinkService` — `src/profile/social-link/social-link.service.ts` — см. ProfileModule выше
 - `SettingsService` — `src/settings/settings.service.ts` — см. SettingsModule выше
 - `DonatorsService` — `src/donators/donators.service.ts` — см. DonatorsModule выше
 - `ScheduleService` — `src/schedule/schedule.service.ts` — см. ScheduleModule выше
