@@ -13,4 +13,10 @@ export class UserMeDto {
 
   @ApiProperty({ example: 'johndoe@example.com', nullable: true })
   email: string | null;
+
+  @ApiProperty({ example: 'John Doe', nullable: true })
+  name: string | null;
+
+  @ApiProperty({ example: 'https://example.com/avatar.png', nullable: true })
+  avatarUrl: string | null;
 }

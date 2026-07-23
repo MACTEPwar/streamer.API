@@ -24,7 +24,7 @@ describe('AuthController', () => {
     googleId: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
-    profile: { email: 'johndoe@example.com' },
+    profile: { email: 'johndoe@example.com', name: 'John Doe', avatarUrl: 'https://example.com/avatar.png' },
   };
 
   const authService = {
@@ -85,6 +85,8 @@ describe('AuthController', () => {
       login: 'johndoe',
       role: Role.USER,
       email: 'johndoe@example.com',
+      name: 'John Doe',
+      avatarUrl: 'https://example.com/avatar.png',
     });
   });
 
