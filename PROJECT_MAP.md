@@ -42,7 +42,7 @@
   - `ProfileService` (`profile.service.ts`) — `findByUserId(userId)`, `update(userId, dto)` поверх `prisma.profile`
   - `ProfileController` (`profile.controller.ts`) — защищён `JwtAuthGuard` (из `AuthModule`) на уровне контроллера
 - `imports: [AuthModule]` — нужен для DI-резолва `JwtAuthGuard` (сам guard зависит от `AuthService`)
-- Редактируемое поле пока только `email` (единственное поле `Profile` кроме id/userId на данный момент — см. схему #15); явный сброс `email` в `null` не поддержан (не требовалось AC)
+- Редактируемое поле пока только `email` — `UpdateProfileDto` не расширялся под новые поля `Profile.name`/`Profile.avatarUrl` (#46, только модель данных, без правки `ProfileModule`/DTO — отдельная будущая задача); явный сброс `email` в `null` не поддержан (не требовалось AC)
 
 ### SettingsModule
 - Путь: `src/settings/`
@@ -96,10 +96,13 @@
 - `Role` (enum) — `ADMIN` \| `MODERATOR` \| `USER`; "гость" — НЕ значение enum, а отсутствие валидной сессии/JWT
 - `Theme` (enum) — `LIGHT` \| `DARK` \| `SYSTEM` ("как на устройстве")
 - `User` — `id` (`String`, `cuid()`), `login` (unique), `passwordHash` (nullable — может не быть при чисто Google-аккаунте), `provider`/`googleId` (nullable, `googleId` unique — Google OAuth), `role` (default `USER`), `createdAt`/`updatedAt`
-- `Profile` — 1:1 с `User` (`userId` unique), `email` (nullable, не верифицируется, для связи/уведомлений и авто-связки Google по email)
+- `Profile` — 1:1 с `User` (`userId` unique), `email` (nullable, не верифицируется, для связи/уведомлений и авто-связки Google по email), `name`/`avatarUrl` (#46, оба nullable — отображаемое имя и URL аватара; `avatarUrl` просто строка-URL, без разделения preset/custom на уровне данных, привязка к `POST /upload` из issue #46 не входит)
 - `Settings` — 1:1 с `User` (`userId` unique), `theme` (default `SYSTEM`), `receiveNotifications` (`Boolean`, default `true`)
 - `Weekday` (enum, #39) — `MONDAY`…`SUNDAY`
 - `Schedule` (#39) — ровно 7 строк (по одной на `weekday`, `@unique`), `isOnline` (default `false`), `eventTitle`/`time` (оба nullable, `time` — строка `HH:MM`, заполняются только когда `isOnline=true`)
+- `SocialLinkType` (enum, #46) — `EMAIL` \| `TELEGRAM` \| `TIKTOK` \| `PHONE` \| `VIBER`
+- `GameAccount` (#46) — 1:N с `User` (`userId`, `onDelete: Cascade`, без `@unique` — пользователь может иметь несколько игровых аккаунтов), `nickname` (`String`), `externalId` (`String` — id аккаунта в игре, намеренно не `id`, чтобы не путать с PK строки), `createdAt`/`updatedAt`; без API-эндпоинтов пока — только модель данных (issue #46)
+- `SocialLink` (#46) — 1:N с `User` (`userId`, `onDelete: Cascade`), `type` (`SocialLinkType`), `value` (`String`, произвольный формат — валидация под конкретный `type` не входит в #46); без API-эндпоинтов пока — только модель данных (issue #46)
 
 ## Глобальная инфраструктура
 
