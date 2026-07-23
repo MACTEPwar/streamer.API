@@ -20,6 +20,7 @@ import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErrorResponseDto } from '../shared/dto/error-response.dto';
 import { AuthService } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -115,6 +116,19 @@ export class AuthController {
   @ApiOkResponse({ schema: { example: { success: true } } })
   logout(@Res({ passthrough: true }) res: Response): { success: true } {
     this.authService.clearAuthCookie(res);
+    return { success: true };
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOkResponse({ schema: { example: { success: true } } })
+  @ApiResponse({ status: 401, type: ErrorResponseDto })
+  async changePassword(
+    @Req() req: Request,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ success: true }> {
+    await this.localAuthService.changePassword(req.user!.id, dto);
     return { success: true };
   }
 
