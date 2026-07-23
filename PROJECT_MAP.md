@@ -37,12 +37,14 @@
 
 ### ProfileModule
 - Путь: `src/profile/`
-- Назначение: `GET`/`PATCH /profile` — чтение/редактирование собственного профиля текущего пользователя. Только свой профиль (без просмотра чужих, без ролевых ограничений — вне scope #21).
+- Назначение: `GET`/`PATCH /profile` + `PATCH /profile/avatar` — чтение/редактирование собственного профиля текущего пользователя (email/имя/аватар). Только свой профиль (без просмотра чужих, без ролевых ограничений — вне scope #21/#49).
 - Компоненты:
-  - `ProfileService` (`profile.service.ts`) — `findByUserId(userId)`, `update(userId, dto)` поверх `prisma.profile`
+  - `ProfileService` (`profile.service.ts`) — `findByUserId(userId)`, `update(userId, dto)` (email/name), `updateAvatar(userId, dto)` (avatarUrl) поверх `prisma.profile`
   - `ProfileController` (`profile.controller.ts`) — защищён `JwtAuthGuard` (из `AuthModule`) на уровне контроллера
+  - `UpdateProfileDto` (`dto/update-profile.dto.ts`) — `email`/`name`, оба `@IsOptional()`, тот же паттерн частичного обновления
+  - `UpdateAvatarDto` (`dto/update-avatar.dto.ts`, #49) — `avatarUrl` (обязательное, `@IsString() @IsNotEmpty() @MaxLength(255)`, намеренно без `@IsUrl()` — значение может быть как относительным путём пресета, так и URL из `POST /upload` (#22), бэку разница пресет/кастом не важна)
 - `imports: [AuthModule]` — нужен для DI-резолва `JwtAuthGuard` (сам guard зависит от `AuthService`)
-- Редактируемое поле пока только `email` — `UpdateProfileDto` не расширялся под новые поля `Profile.name`/`Profile.avatarUrl` (#46, только модель данных, без правки `ProfileModule`/DTO — отдельная будущая задача); явный сброс `email` в `null` не поддержан (не требовалось AC)
+- Редактируемые поля: `email`/`name` через `PATCH /profile`, `avatarUrl` — отдельным `PATCH /profile/avatar` (#49, привязка к аватару из issue #22/#46 закрыта); явный сброс `email`/`name`/`avatarUrl` в `null` не поддержан (не требовалось AC)
 
 ### SettingsModule
 - Путь: `src/settings/`
@@ -82,7 +84,7 @@
   - Константы (`constants/upload.constant.ts`) — `UPLOADS_DIR`, `UPLOADS_URL_PREFIX = '/uploads'`, `MAX_UPLOAD_SIZE_BYTES = 5 МБ`, `MIME_EXTENSION_MAP` (allowlist: `image/jpeg`/`image/png`/`image/webp`)
 - `imports: [AuthModule]` — для DI-резолва `JwtAuthGuard`
 - Ошибки `multer` (превышение лимита размера, недопустимый тип файла) уже транслируются в корректные `HttpException` встроенным `transformException()` из `@nestjs/platform-express` (`FileInterceptor` вызывает его сам) — доп. обработка `MulterError` в `AllExceptionsFilter` не нужна, ошибки доходят как обычный `413`/`400`
-- Не входит (см. issue): привязка к полю аватара в `Profile` — это отдельная будущая задача, само поле в `Profile` не заводится
+- Привязка к полю аватара в `Profile` — реализована в `ProfileModule` (`PATCH /profile/avatar`, #49), а не здесь: `UploadController` по-прежнему только принимает файл и возвращает `{ url }`, ничего не знает про `Profile`
 
 ## Сиды
 
@@ -96,7 +98,7 @@
 - `Role` (enum) — `ADMIN` \| `MODERATOR` \| `USER`; "гость" — НЕ значение enum, а отсутствие валидной сессии/JWT
 - `Theme` (enum) — `LIGHT` \| `DARK` \| `SYSTEM` ("как на устройстве")
 - `User` — `id` (`String`, `cuid()`), `login` (unique), `passwordHash` (nullable — может не быть при чисто Google-аккаунте), `provider`/`googleId` (nullable, `googleId` unique — Google OAuth), `role` (default `USER`), `createdAt`/`updatedAt`
-- `Profile` — 1:1 с `User` (`userId` unique), `email` (nullable, не верифицируется, для связи/уведомлений и авто-связки Google по email), `name`/`avatarUrl` (#46, оба nullable — отображаемое имя и URL аватара; `avatarUrl` просто строка-URL, без разделения preset/custom на уровне данных, привязка к `POST /upload` из issue #46 не входит)
+- `Profile` — 1:1 с `User` (`userId` unique), `email` (nullable, не верифицируется, для связи/уведомлений и авто-связки Google по email), `name`/`avatarUrl` (#46, оба nullable — отображаемое имя и URL аватара; `avatarUrl` просто строка-URL, без разделения preset/custom на уровне данных); редактируются через `PATCH /profile`/`PATCH /profile/avatar` (#49)
 - `Settings` — 1:1 с `User` (`userId` unique), `theme` (default `SYSTEM`), `receiveNotifications` (`Boolean`, default `true`)
 - `Weekday` (enum, #39) — `MONDAY`…`SUNDAY`
 - `Schedule` (#39) — ровно 7 строк (по одной на `weekday`, `@unique`), `isOnline` (default `false`), `eventTitle`/`time` (оба nullable, `time` — строка `HH:MM`, заполняются только когда `isOnline=true`)
@@ -121,8 +123,9 @@
 - `POST /auth/register` — `src/auth/auth.controller.ts` — регистрация по логину/паролю, создаёт `User`+`Profile`+`Settings`, выдаёт сессионную cookie, `409` при занятом `login`, `429` при превышении лимита попыток (#27)
 - `POST /auth/login` — `src/auth/auth.controller.ts` — логин по логину/паролю, выдаёт сессионную cookie, `401` при неверных данных, `429` при превышении лимита попыток (#27)
 - `POST /auth/google` — `src/auth/auth.controller.ts` — приём Google ID-токена, find-or-create пользователя, выдаёт сессионную cookie, `401` при невалидном/просроченном токене
-- `GET /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, email }` собственного профиля
-- `PATCH /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, обновляет `email` собственного профиля
+- `GET /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, email, name, avatarUrl }` собственного профиля
+- `PATCH /profile` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, обновляет `email`/`name` собственного профиля
+- `PATCH /profile/avatar` — `src/profile/profile.controller.ts` — защищён `JwtAuthGuard`, обновляет `avatarUrl` собственного профиля (#49)
 - `GET /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, возвращает `{ id, userId, theme, receiveNotifications }` собственных настроек
 - `PATCH /settings` — `src/settings/settings.controller.ts` — защищён `JwtAuthGuard`, обновляет `theme`/`receiveNotifications` собственных настроек
 - `POST /upload` — `src/upload/upload.controller.ts` — защищён `JwtAuthGuard`, принимает файл (multipart, поле `file`), возвращает `{ url }`; `400` при недопустимом типе/отсутствии файла, `413` при превышении лимита размера
