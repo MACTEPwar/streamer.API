@@ -136,13 +136,15 @@ export class AuthController {
     id: string;
     login: string;
     role: UserMeDto['role'];
-    profile: { email: string | null } | null;
+    profile: { email: string | null; name: string | null; avatarUrl: string | null } | null;
   }): UserMeDto {
     return {
       id: user.id,
       login: user.login,
       role: user.role,
       email: user.profile?.email ?? null,
+      name: user.profile?.name ?? null,
+      avatarUrl: user.profile?.avatarUrl ?? null,
     };
   }
 }
