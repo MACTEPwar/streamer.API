@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ErrorResponseDto } from '../shared/dto/error-response.dto';
 import { ProfileDto } from './dto/profile.dto';
+import { UpdateAvatarDto } from './dto/update-avatar.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileService } from './profile.service';
 
@@ -28,5 +29,15 @@ export class ProfileController {
     @Body() dto: UpdateProfileDto,
   ): Promise<ProfileDto> {
     return this.profileService.update(req.user!.id, dto);
+  }
+
+  @Patch('avatar')
+  @ApiOkResponse({ type: ProfileDto })
+  @ApiResponse({ status: 401, type: ErrorResponseDto })
+  updateOwnAvatar(
+    @Req() req: Request,
+    @Body() dto: UpdateAvatarDto,
+  ): Promise<ProfileDto> {
+    return this.profileService.updateAvatar(req.user!.id, dto);
   }
 }
