@@ -53,8 +53,15 @@ export class GoogleAuthService {
       data: {
         login: googleId,
         googleId,
+        provider: 'google',
         role: 'USER',
-        profile: { create: { email: payload.email } },
+        profile: {
+          create: {
+            email: payload.email,
+            name: payload.name,
+            avatarUrl: payload.picture,
+          },
+        },
         settings: { create: {} },
       },
       include: { profile: true },

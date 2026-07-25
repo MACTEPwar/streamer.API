@@ -124,6 +124,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiOkResponse({ schema: { example: { success: true } } })
   @ApiResponse({ status: 401, type: ErrorResponseDto })
+  @ApiResponse({ status: 403, type: ErrorResponseDto })
   async changePassword(
     @Req() req: Request,
     @Body() dto: ChangePasswordDto,

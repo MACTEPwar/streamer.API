@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LocalAuthService } from './local-auth.service';
@@ -69,6 +69,22 @@ describe('LocalAuthService.changePassword', () => {
         newPassword: 'new-secret-1',
       }),
     ).rejects.toThrow(UnauthorizedException);
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it('throws ForbiddenException when the account is a Google account', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      passwordHash: null,
+      provider: 'google',
+    });
+
+    await expect(
+      service.changePassword('user-1', {
+        currentPassword: 'anything',
+        newPassword: 'new-secret-1',
+      }),
+    ).rejects.toThrow(ForbiddenException);
     expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
