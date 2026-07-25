@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import { PrismaUserWithProfile } from './types/prisma-user-with-profile.type';
 import { UserWithProfile } from './types/user-with-profile.type';
 
 const INVALID_CREDENTIALS_MESSAGE = 'Неверный логин или пароль';
+const GOOGLE_ACCOUNT_PASSWORD_CHANGE_MESSAGE =
+  'Смена пароля недоступна: вход в этот аккаунт выполняется через Google';
 
 @Injectable()
 export class LocalAuthService {
@@ -70,6 +73,10 @@ export class LocalAuthService {
 
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (user?.provider === 'google') {
+      throw new ForbiddenException(GOOGLE_ACCOUNT_PASSWORD_CHANGE_MESSAGE);
+    }
 
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
