@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
+import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { envValidationSchema } from './config/env.validation';
@@ -22,6 +23,7 @@ import { UploadModule } from './upload/upload.module';
     PrismaModule,
     HealthModule,
     AuthModule,
+    AdminModule,
     DonatorsModule,
     ProfileModule,
     ScheduleModule,
