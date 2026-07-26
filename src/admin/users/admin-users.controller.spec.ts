@@ -27,6 +27,19 @@ describe('AdminUsersController (guards)', () => {
       items: [{ id: 'u1', login: 'user1', role: Role.USER }],
       meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
     }),
+    findOne: jest.fn().mockResolvedValue({
+      id: 'u2',
+      login: 'user2',
+      role: Role.USER,
+      provider: null,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+      email: null,
+      name: null,
+      avatarUrl: null,
+      gameAccounts: [],
+      socialLinks: [],
+    }),
     updateRole: jest
       .fn()
       .mockResolvedValue({ id: 'u2', login: 'user2', role: Role.ADMIN }),
@@ -95,6 +108,57 @@ describe('AdminUsersController (guards)', () => {
       .expect(200);
 
     expect(adminUsersService.findAll).toHaveBeenCalled();
+  });
+
+  it('rejects GET /:id without an auth cookie with 401', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/admin/users/u2')
+      .expect(401);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(401);
+  });
+
+  it('rejects GET /:id from a non-ADMIN user with 403', async () => {
+    authService.verifyToken.mockResolvedValue({ sub: 'u1', role: Role.USER });
+
+    const res = await request(app.getHttpServer())
+      .get('/admin/users/u2')
+      .set('Cookie', 'access_token=fake')
+      .expect(403);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(403);
+    expect(adminUsersService.findOne).not.toHaveBeenCalled();
+  });
+
+  it('allows GET /:id from an ADMIN user', async () => {
+    authService.verifyToken.mockResolvedValue({
+      sub: 'admin1',
+      role: Role.ADMIN,
+    });
+
+    await request(app.getHttpServer())
+      .get('/admin/users/u2')
+      .set('Cookie', 'access_token=fake')
+      .expect(200);
+
+    expect(adminUsersService.findOne).toHaveBeenCalledWith('u2');
+  });
+
+  it('returns 404 when getting a non-existent user by id', async () => {
+    authService.verifyToken.mockResolvedValue({
+      sub: 'admin1',
+      role: Role.ADMIN,
+    });
+    adminUsersService.findOne.mockRejectedValueOnce(
+      new NotFoundException('Пользователь не найден'),
+    );
+
+    const res = await request(app.getHttpServer())
+      .get('/admin/users/missing')
+      .set('Cookie', 'access_token=fake')
+      .expect(404);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(404);
   });
 
   it('allows PATCH role from an ADMIN user', async () => {

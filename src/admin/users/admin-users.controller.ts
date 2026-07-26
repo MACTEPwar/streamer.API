@@ -18,9 +18,10 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Role } from '../../generated/prisma/enums';
 import { ErrorResponseDto } from '../../shared/dto/error-response.dto';
 import { ApiPaginatedResponse } from '../../shared/decorators/api-paginated-response.decorator';
-import { PaginationQueryDto } from '../../shared/dto/pagination-query.dto';
 import { AdminUsersService } from './admin-users.service';
+import { AdminUserDetailDto } from './dto/admin-user-detail.dto';
 import { AdminUserDto } from './dto/admin-user.dto';
+import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 
 @ApiTags('admin/users')
@@ -34,8 +35,17 @@ export class AdminUsersController {
   @ApiPaginatedResponse(AdminUserDto)
   @ApiResponse({ status: 401, type: ErrorResponseDto })
   @ApiResponse({ status: 403, type: ErrorResponseDto })
-  findAll(@Query() query: PaginationQueryDto) {
+  findAll(@Query() query: AdminUsersQueryDto) {
     return this.adminUsersService.findAll(query);
+  }
+
+  @Get(':id')
+  @ApiOkResponse({ type: AdminUserDetailDto })
+  @ApiResponse({ status: 401, type: ErrorResponseDto })
+  @ApiResponse({ status: 403, type: ErrorResponseDto })
+  @ApiResponse({ status: 404, type: ErrorResponseDto })
+  findOne(@Param('id') id: string): Promise<AdminUserDetailDto> {
+    return this.adminUsersService.findOne(id);
   }
 
   @Patch(':id/role')
