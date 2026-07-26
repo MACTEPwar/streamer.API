@@ -2,7 +2,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserEntity } from '../../auth/entities/user.entity';
 import { Role } from '../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationQueryDto } from '../../shared/dto/pagination-query.dto';
+import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 import { AdminUsersService } from './admin-users.service';
 
 describe('AdminUsersService', () => {
@@ -23,20 +23,22 @@ describe('AdminUsersService', () => {
   });
 
   describe('findAll', () => {
-    it('returns a paginated list of users', async () => {
+    it('returns a paginated list of users without filters', async () => {
       prismaMock.user.findMany.mockResolvedValue([
         { id: 'u1', login: 'user1', role: Role.USER, passwordHash: 'hash' },
       ]);
       prismaMock.user.count.mockResolvedValue(1);
 
-      const query = new PaginationQueryDto();
+      const query = new AdminUsersQueryDto();
       const result = await service.findAll(query);
 
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+        where: {},
         skip: 0,
         take: 20,
         orderBy: undefined,
       });
+      expect(prismaMock.user.count).toHaveBeenCalledWith({ where: {} });
       expect(result.items).toHaveLength(1);
       expect(result.items[0]).toBeInstanceOf(UserEntity);
       expect(result.meta).toEqual({
@@ -45,6 +47,132 @@ describe('AdminUsersService', () => {
         total: 1,
         totalPages: 1,
       });
+    });
+
+    it('filters by login only', async () => {
+      prismaMock.user.findMany.mockResolvedValue([]);
+      prismaMock.user.count.mockResolvedValue(0);
+
+      const query = new AdminUsersQueryDto();
+      query.login = 'john';
+      await service.findAll(query);
+
+      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+        where: { login: { contains: 'john' } },
+        skip: 0,
+        take: 20,
+        orderBy: undefined,
+      });
+      expect(prismaMock.user.count).toHaveBeenCalledWith({
+        where: { login: { contains: 'john' } },
+      });
+    });
+
+    it('filters by role only', async () => {
+      prismaMock.user.findMany.mockResolvedValue([]);
+      prismaMock.user.count.mockResolvedValue(0);
+
+      const query = new AdminUsersQueryDto();
+      query.role = Role.ADMIN;
+      await service.findAll(query);
+
+      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+        where: { role: Role.ADMIN },
+        skip: 0,
+        take: 20,
+        orderBy: undefined,
+      });
+      expect(prismaMock.user.count).toHaveBeenCalledWith({
+        where: { role: Role.ADMIN },
+      });
+    });
+
+    it('combines login and role filters', async () => {
+      prismaMock.user.findMany.mockResolvedValue([]);
+      prismaMock.user.count.mockResolvedValue(0);
+
+      const query = new AdminUsersQueryDto();
+      query.login = 'john';
+      query.role = Role.ADMIN;
+      await service.findAll(query);
+
+      expect(prismaMock.user.findMany).toHaveBeenCalledWith({
+        where: { login: { contains: 'john' }, role: Role.ADMIN },
+        skip: 0,
+        take: 20,
+        orderBy: undefined,
+      });
+      expect(prismaMock.user.count).toHaveBeenCalledWith({
+        where: { login: { contains: 'john' }, role: Role.ADMIN },
+      });
+    });
+  });
+
+  describe('findOne', () => {
+    it('returns full user detail data', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        login: 'user1',
+        role: Role.USER,
+        provider: null,
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+        profile: {
+          email: 'user1@example.com',
+          name: 'User One',
+          avatarUrl: '/uploads/avatar.png',
+        },
+        gameAccounts: [{ id: 'ga1', userId: 'u1', nickname: 'nick' }],
+        socialLinks: [{ id: 'sl1', userId: 'u1', type: 'TELEGRAM' }],
+      });
+
+      const result = await service.findOne('u1');
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'u1' },
+        include: { profile: true, gameAccounts: true, socialLinks: true },
+      });
+      expect(result).toEqual({
+        id: 'u1',
+        login: 'user1',
+        role: Role.USER,
+        provider: null,
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+        email: 'user1@example.com',
+        name: 'User One',
+        avatarUrl: '/uploads/avatar.png',
+        gameAccounts: [{ id: 'ga1', userId: 'u1', nickname: 'nick' }],
+        socialLinks: [{ id: 'sl1', userId: 'u1', type: 'TELEGRAM' }],
+      });
+    });
+
+    it('falls back to null profile fields when profile is missing', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        login: 'user1',
+        role: Role.USER,
+        provider: null,
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+        profile: null,
+        gameAccounts: [],
+        socialLinks: [],
+      });
+
+      const result = await service.findOne('u1');
+
+      expect(result.email).toBeNull();
+      expect(result.name).toBeNull();
+      expect(result.avatarUrl).toBeNull();
+    });
+
+    it('throws NotFoundException when the user does not exist', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne('missing')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

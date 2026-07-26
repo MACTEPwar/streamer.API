@@ -6,26 +6,58 @@ import {
 import { UserEntity } from '../../auth/entities/user.entity';
 import { Role } from '../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationQueryDto } from '../../shared/dto/pagination-query.dto';
 import { buildPaginationMeta } from '../../shared/pagination/paginate';
+import { AdminUserDetailDto } from './dto/admin-user-detail.dto';
+import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 
 @Injectable()
 export class AdminUsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query: PaginationQueryDto) {
+  async findAll(query: AdminUsersQueryDto) {
+    const where = {
+      ...(query.login && { login: { contains: query.login } }),
+      ...(query.role && { role: query.role }),
+    };
+
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
+        where,
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         orderBy: query.sortBy ? { [query.sortBy]: query.sortOrder } : undefined,
       }),
-      this.prisma.user.count(),
+      this.prisma.user.count({ where }),
     ]);
 
     return {
       items: users.map((user) => new UserEntity(user)),
       meta: buildPaginationMeta(query.page, query.limit, total),
+    };
+  }
+
+  async findOne(id: string): Promise<AdminUserDetailDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { profile: true, gameAccounts: true, socialLinks: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+
+    return {
+      id: user.id,
+      login: user.login,
+      role: user.role,
+      provider: user.provider,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      email: user.profile?.email ?? null,
+      name: user.profile?.name ?? null,
+      avatarUrl: user.profile?.avatarUrl ?? null,
+      gameAccounts: user.gameAccounts,
+      socialLinks: user.socialLinks,
     };
   }
 
