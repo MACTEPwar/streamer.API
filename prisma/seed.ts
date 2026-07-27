@@ -28,26 +28,30 @@ async function seedAdmin(prisma: PrismaClient) {
     process.exit(1);
   }
 
-  const existing = await prisma.user.findUnique({ where: { login } });
+  const existing = await prisma.authMethod.findUnique({
+    where: { type_identifier: { type: 'LOCAL', identifier: login } },
+  });
+
+  if (existing) {
+    console.log(
+      `Администратор "${login}" уже существует, пропускаю (id: ${existing.userId}).`,
+    );
+    return;
+  }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-  const admin = await prisma.user.upsert({
-    where: { login },
-    update: {},
-    create: {
-      login,
-      passwordHash,
+  const admin = await prisma.user.create({
+    data: {
       role: 'ADMIN',
-      profile: { create: {} },
+      profile: { create: { name: login } },
       settings: { create: {} },
+      authMethods: {
+        create: { type: 'LOCAL', identifier: login, passwordHash },
+      },
     },
   });
 
-  console.log(
-    existing
-      ? `Администратор "${admin.login}" уже существует, пропускаю (id: ${admin.id}).`
-      : `Создан администратор "${admin.login}" (id: ${admin.id}).`,
-  );
+  console.log(`Создан администратор "${login}" (id: ${admin.id}).`);
 }
 
 async function main() {

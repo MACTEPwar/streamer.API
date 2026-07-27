@@ -16,17 +16,16 @@ describe('ProfileService', () => {
   });
 
   describe('update', () => {
-    it('updates email and name for the given user', async () => {
+    it('updates name for the given user', async () => {
       prismaMock.profile.update.mockResolvedValue({});
 
       await service.update('u1', {
-        email: 'johndoe@example.com',
         name: 'John Doe',
       });
 
       expect(prismaMock.profile.update).toHaveBeenCalledWith({
         where: { userId: 'u1' },
-        data: { email: 'johndoe@example.com', name: 'John Doe' },
+        data: { name: 'John Doe' },
       });
     });
   });

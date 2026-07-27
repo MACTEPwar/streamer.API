@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -8,7 +7,6 @@ import * as bcrypt from 'bcrypt';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BCRYPT_SALT_ROUNDS } from './constants/password.constant';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UserEntity } from './entities/user.entity';
@@ -16,8 +14,6 @@ import { PrismaUserWithProfile } from './types/prisma-user-with-profile.type';
 import { UserWithProfile } from './types/user-with-profile.type';
 
 const INVALID_CREDENTIALS_MESSAGE = 'Неверный логин или пароль';
-const GOOGLE_ACCOUNT_PASSWORD_CHANGE_MESSAGE =
-  'Смена пароля недоступна: вход в этот аккаунт выполняется через Google';
 
 @Injectable()
 export class LocalAuthService {
@@ -29,13 +25,14 @@ export class LocalAuthService {
     try {
       const user = await this.prisma.user.create({
         data: {
-          login: dto.login,
-          passwordHash,
           role: 'USER',
-          profile: { create: {} },
+          profile: { create: { name: dto.login } },
           settings: { create: {} },
+          authMethods: {
+            create: { type: 'LOCAL', identifier: dto.login, passwordHash },
+          },
         },
-        include: { profile: true },
+        include: { profile: true, authMethods: true },
       });
       return this.toUserWithProfile(user);
     } catch (error) {
@@ -50,59 +47,39 @@ export class LocalAuthService {
   }
 
   async validateCredentials(dto: LoginDto): Promise<UserWithProfile> {
-    const user = await this.prisma.user.findUnique({
-      where: { login: dto.login },
-      include: { profile: true },
+    const authMethod = await this.prisma.authMethod.findUnique({
+      where: { type_identifier: { type: 'LOCAL', identifier: dto.login } },
     });
 
-    if (!user || !user.passwordHash) {
+    if (!authMethod || !authMethod.passwordHash) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
 
     const passwordMatches = await bcrypt.compare(
       dto.password,
-      user.passwordHash,
+      authMethod.passwordHash,
     );
 
     if (!passwordMatches) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
+
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: authMethod.userId },
+      include: { profile: true, authMethods: true },
+    });
 
     return this.toUserWithProfile(user);
   }
 
-  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-
-    if (user?.provider === 'google') {
-      throw new ForbiddenException(GOOGLE_ACCOUNT_PASSWORD_CHANGE_MESSAGE);
-    }
-
-    if (!user || !user.passwordHash) {
-      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
-    }
-
-    const passwordMatches = await bcrypt.compare(
-      dto.currentPassword,
-      user.passwordHash,
-    );
-
-    if (!passwordMatches) {
-      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
-    }
-
-    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_SALT_ROUNDS);
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash },
-    });
-  }
-
   private toUserWithProfile({
     profile,
+    authMethods,
     ...user
   }: PrismaUserWithProfile): UserWithProfile {
-    return Object.assign(new UserEntity(user), { profile });
+    return Object.assign(new UserEntity(user), {
+      profile,
+      authMethods: authMethods.map(({ type }) => ({ type })),
+    });
   }
 }

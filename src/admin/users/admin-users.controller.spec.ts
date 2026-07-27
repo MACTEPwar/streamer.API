@@ -24,28 +24,24 @@ describe('AdminUsersController (guards)', () => {
 
   const adminUsersService = {
     findAll: jest.fn().mockResolvedValue({
-      items: [{ id: 'u1', login: 'user1', role: Role.USER }],
+      items: [
+        { id: 'u1', name: 'user1', role: Role.USER, authMethods: ['LOCAL'] },
+      ],
       meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
     }),
     findOne: jest.fn().mockResolvedValue({
       id: 'u2',
-      login: 'user2',
+      name: null,
       role: Role.USER,
-      provider: null,
+      authMethods: ['LOCAL'],
       createdAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),
-      email: null,
-      name: null,
       avatarUrl: null,
       gameAccounts: [],
       socialLinks: [],
     }),
-    updateRole: jest
-      .fn()
-      .mockResolvedValue({ id: 'u2', login: 'user2', role: Role.ADMIN }),
-    remove: jest
-      .fn()
-      .mockResolvedValue({ id: 'u2', login: 'user2', role: Role.USER }),
+    updateRole: jest.fn().mockResolvedValue({ id: 'u2', role: Role.ADMIN }),
+    remove: jest.fn().mockResolvedValue({ id: 'u2', role: Role.USER }),
   };
 
   const authService = {
@@ -270,11 +266,7 @@ describe('AdminUsersController (serialization)', () => {
 
   const rawUser = {
     id: 'u2',
-    login: 'user2',
     role: Role.USER,
-    provider: null,
-    passwordHash: '$2b$10$hashedpassword',
-    googleId: 'google-sub-1',
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
   };

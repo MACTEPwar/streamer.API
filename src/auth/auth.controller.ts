@@ -20,7 +20,6 @@ import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErrorResponseDto } from '../shared/dto/error-response.dto';
 import { AuthService } from './auth.service';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -29,6 +28,7 @@ import { UserEntity } from './entities/user.entity';
 import { GoogleAuthService } from './google-auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthService } from './local-auth.service';
+import { AuthMethodType } from '../generated/prisma/enums';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -102,11 +102,15 @@ export class AuthController {
   @ApiOkResponse({ type: UserMeDto })
   @ApiResponse({ status: 401, type: ErrorResponseDto })
   async me(@Req() req: Request): Promise<UserMeDto> {
-    const { profile, ...raw } = await this.prisma.user.findUniqueOrThrow({
-      where: { id: req.user!.id },
-      include: { profile: true },
+    const { profile, authMethods, ...raw } =
+      await this.prisma.user.findUniqueOrThrow({
+        where: { id: req.user!.id },
+        include: { profile: true, authMethods: true },
+      });
+    const user = Object.assign(new UserEntity(raw), {
+      profile,
+      authMethods: authMethods.map(({ type }) => ({ type })),
     });
-    const user = Object.assign(new UserEntity(raw), { profile });
 
     return this.toUserMeDto(user);
   }
@@ -119,33 +123,18 @@ export class AuthController {
     return { success: true };
   }
 
-  @Post('change-password')
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard)
-  @ApiOkResponse({ schema: { example: { success: true } } })
-  @ApiResponse({ status: 401, type: ErrorResponseDto })
-  @ApiResponse({ status: 403, type: ErrorResponseDto })
-  async changePassword(
-    @Req() req: Request,
-    @Body() dto: ChangePasswordDto,
-  ): Promise<{ success: true }> {
-    await this.localAuthService.changePassword(req.user!.id, dto);
-    return { success: true };
-  }
-
   private toUserMeDto(user: {
     id: string;
-    login: string;
     role: UserMeDto['role'];
-    profile: { email: string | null; name: string | null; avatarUrl: string | null } | null;
+    profile: { name: string | null; avatarUrl: string | null } | null;
+    authMethods: { type: AuthMethodType }[];
   }): UserMeDto {
     return {
       id: user.id,
-      login: user.login,
       role: user.role,
-      email: user.profile?.email ?? null,
       name: user.profile?.name ?? null,
       avatarUrl: user.profile?.avatarUrl ?? null,
+      authMethods: user.authMethods.map(({ type }) => ({ type })),
     };
   }
 }
