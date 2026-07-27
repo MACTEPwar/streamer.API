@@ -22,7 +22,9 @@ describe('AuthMethodsController', () => {
   let app: INestApplication;
 
   const authMethodsService = {
-    findAll: jest.fn().mockResolvedValue([{ type: 'LOCAL', identifier: 'johndoe' }]),
+    findAll: jest
+      .fn()
+      .mockResolvedValue([{ type: 'LOCAL', identifier: 'johndoe' }]),
     addLocal: jest.fn().mockResolvedValue(undefined),
     changeLocalPassword: jest.fn().mockResolvedValue(undefined),
     addGoogle: jest.fn().mockResolvedValue(undefined),
@@ -56,7 +58,10 @@ describe('AuthMethodsController', () => {
   });
 
   const authCookie = () =>
-    authService.verifyToken.mockResolvedValue({ sub: 'user-1', role: Role.USER });
+    authService.verifyToken.mockResolvedValue({
+      sub: 'user-1',
+      role: Role.USER,
+    });
 
   it('rejects GET /auth/methods without an auth cookie with 401', async () => {
     const res = await request(app.getHttpServer())

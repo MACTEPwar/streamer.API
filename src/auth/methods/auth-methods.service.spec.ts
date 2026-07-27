@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleAuthService } from '../google-auth.service';
 import { AuthMethodsService } from './auth-methods.service';
@@ -63,7 +64,16 @@ describe('AuthMethodsService', () => {
 
       expect(prismaMock.authMethod.create).toHaveBeenCalledTimes(1);
       const [[createArgs]] = prismaMock.authMethod.create.mock.calls as [
-        [{ data: { userId: string; type: string; identifier: string; passwordHash: string } }],
+        [
+          {
+            data: {
+              userId: string;
+              type: string;
+              identifier: string;
+              passwordHash: string;
+            };
+          },
+        ],
       ];
       expect(createArgs.data.userId).toBe('user-1');
       expect(createArgs.data.type).toBe('LOCAL');
@@ -81,9 +91,6 @@ describe('AuthMethodsService', () => {
 
     it('throws ConflictException when the login is already taken by another user', async () => {
       prismaMock.authMethod.findFirst.mockResolvedValue(null);
-      const { Prisma } = jest.requireActual(
-        '../../generated/prisma/client',
-      ) as { Prisma: typeof import('../../generated/prisma/client').Prisma };
       prismaMock.authMethod.create.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError('Duplicate', {
           code: 'P2002',

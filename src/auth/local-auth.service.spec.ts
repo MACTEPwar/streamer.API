@@ -1,5 +1,6 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LocalAuthService } from './local-auth.service';
 
@@ -62,9 +63,6 @@ describe('LocalAuthService', () => {
     });
 
     it('throws ConflictException when the login (identifier) is already taken', async () => {
-      const { Prisma } = jest.requireActual('../generated/prisma/client') as {
-        Prisma: typeof import('../generated/prisma/client').Prisma;
-      };
       prismaMock.user.create.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError('Duplicate', {
           code: 'P2002',

@@ -11,7 +11,11 @@ export class AdminUserDto {
   @ApiProperty({ enum: Role, example: Role.USER })
   role: Role;
 
-  @ApiProperty({ enum: AuthMethodType, isArray: true, example: [AuthMethodType.LOCAL] })
+  @ApiProperty({
+    enum: AuthMethodType,
+    isArray: true,
+    example: [AuthMethodType.LOCAL],
+  })
   authMethods: AuthMethodType[];
 
   @ApiProperty({ example: '2026-01-01T00:00:00.000Z' })

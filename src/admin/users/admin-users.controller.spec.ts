@@ -24,7 +24,9 @@ describe('AdminUsersController (guards)', () => {
 
   const adminUsersService = {
     findAll: jest.fn().mockResolvedValue({
-      items: [{ id: 'u1', name: 'user1', role: Role.USER, authMethods: ['LOCAL'] }],
+      items: [
+        { id: 'u1', name: 'user1', role: Role.USER, authMethods: ['LOCAL'] },
+      ],
       meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
     }),
     findOne: jest.fn().mockResolvedValue({
@@ -38,9 +40,7 @@ describe('AdminUsersController (guards)', () => {
       gameAccounts: [],
       socialLinks: [],
     }),
-    updateRole: jest
-      .fn()
-      .mockResolvedValue({ id: 'u2', role: Role.ADMIN }),
+    updateRole: jest.fn().mockResolvedValue({ id: 'u2', role: Role.ADMIN }),
     remove: jest.fn().mockResolvedValue({ id: 'u2', role: Role.USER }),
   };
 

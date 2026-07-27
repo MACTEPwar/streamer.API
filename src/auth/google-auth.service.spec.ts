@@ -97,7 +97,11 @@ describe('GoogleAuthService.authenticate', () => {
     await service.authenticate({ idToken: 'token' });
 
     const [[createArgs]] = prismaMock.user.create.mock.calls as [
-      [{ data: { profile: { create: { name?: string; avatarUrl?: string } } } }],
+      [
+        {
+          data: { profile: { create: { name?: string; avatarUrl?: string } } };
+        },
+      ],
     ];
     expect(createArgs.data.profile.create.name).toBe('John Doe');
     expect(createArgs.data.profile.create.avatarUrl).toBe(
