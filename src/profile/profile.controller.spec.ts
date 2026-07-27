@@ -19,21 +19,18 @@ describe('ProfileController (guards)', () => {
     findByUserId: jest.fn().mockResolvedValue({
       id: 'p1',
       userId: 'u1',
-      email: 'johndoe@example.com',
       name: 'John Doe',
       avatarUrl: null,
     }),
     update: jest.fn().mockResolvedValue({
       id: 'p1',
       userId: 'u1',
-      email: 'johndoe@example.com',
       name: 'John Doe',
       avatarUrl: null,
     }),
     updateAvatar: jest.fn().mockResolvedValue({
       id: 'p1',
       userId: 'u1',
-      email: 'johndoe@example.com',
       name: 'John Doe',
       avatarUrl: '/uploads/9c858901-8a57-4791-81fe-4c455b099bc9.png',
     }),

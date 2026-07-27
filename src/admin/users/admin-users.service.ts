@@ -4,11 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UserEntity } from '../../auth/entities/user.entity';
+import { Prisma } from '../../generated/prisma/client';
 import { Role } from '../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginationMeta } from '../../shared/pagination/paginate';
 import { AdminUserDetailDto } from './dto/admin-user-detail.dto';
+import { AdminUserDto } from './dto/admin-user.dto';
 import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
+
+type UserWithProfileAndAuthMethods = Prisma.UserGetPayload<{
+  include: { profile: true; authMethods: true };
+}>;
 
 @Injectable()
 export class AdminUsersService {
@@ -16,13 +22,19 @@ export class AdminUsersService {
 
   async findAll(query: AdminUsersQueryDto) {
     const where = {
-      ...(query.login && { login: { contains: query.login } }),
+      ...(query.search && {
+        OR: [
+          { profile: { name: { contains: query.search } } },
+          { authMethods: { some: { identifier: { contains: query.search } } } },
+        ],
+      }),
       ...(query.role && { role: query.role }),
     };
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
+        include: { profile: true, authMethods: true },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         orderBy: query.sortBy ? { [query.sortBy]: query.sortOrder } : undefined,
@@ -31,7 +43,7 @@ export class AdminUsersService {
     ]);
 
     return {
-      items: users.map((user) => new UserEntity(user)),
+      items: users.map((user) => this.toAdminUserDto(user)),
       meta: buildPaginationMeta(query.page, query.limit, total),
     };
   }
@@ -39,7 +51,12 @@ export class AdminUsersService {
   async findOne(id: string): Promise<AdminUserDetailDto> {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      include: { profile: true, gameAccounts: true, socialLinks: true },
+      include: {
+        profile: true,
+        gameAccounts: true,
+        socialLinks: true,
+        authMethods: true,
+      },
     });
 
     if (!user) {
@@ -47,14 +64,7 @@ export class AdminUsersService {
     }
 
     return {
-      id: user.id,
-      login: user.login,
-      role: user.role,
-      provider: user.provider,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      email: user.profile?.email ?? null,
-      name: user.profile?.name ?? null,
+      ...this.toAdminUserDto(user),
       avatarUrl: user.profile?.avatarUrl ?? null,
       gameAccounts: user.gameAccounts,
       socialLinks: user.socialLinks,
@@ -84,6 +94,17 @@ export class AdminUsersService {
     const user = await this.prisma.user.delete({ where: { id } });
 
     return new UserEntity(user);
+  }
+
+  private toAdminUserDto(user: UserWithProfileAndAuthMethods): AdminUserDto {
+    return {
+      id: user.id,
+      name: user.profile?.name ?? null,
+      role: user.role,
+      authMethods: user.authMethods.map((method) => method.type),
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   }
 
   private assertNotSelf(currentUserId: string, id: string): void {

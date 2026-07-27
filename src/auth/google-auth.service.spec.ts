@@ -14,10 +14,11 @@ describe('GoogleAuthService.authenticate', () => {
   let service: GoogleAuthService;
   const prismaMock = {
     user: {
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
-      update: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       create: jest.fn(),
+    },
+    authMethod: {
+      findUnique: jest.fn(),
     },
   };
   const configMock = {
@@ -39,53 +40,58 @@ describe('GoogleAuthService.authenticate', () => {
     });
   }
 
-  it('creates a new user with provider "google" when no account matches', async () => {
+  it('creates a new user + AuthMethod(GOOGLE) when no AuthMethod matches googleId', async () => {
     mockPayload({
       sub: 'google-sub-1',
       email: 'new-user@example.com',
       email_verified: true,
     });
-    prismaMock.user.findUnique.mockResolvedValue(null);
-    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.authMethod.findUnique.mockResolvedValue(null);
     prismaMock.user.create.mockResolvedValue({
       id: 'user-1',
-      login: 'google-sub-1',
-      googleId: 'google-sub-1',
-      provider: 'google',
       role: 'USER',
-      profile: { email: 'new-user@example.com' },
+      profile: { name: null, avatarUrl: null },
+      authMethods: [{ type: 'GOOGLE' }],
     });
 
     await service.authenticate({ idToken: 'token' });
 
     expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
     const [[createArgs]] = prismaMock.user.create.mock.calls as [
-      [{ data: { provider?: string } }],
+      [
+        {
+          data: {
+            authMethods: { create: { type: string; identifier: string } };
+            socialLinks?: { create: { type: string; value: string } };
+          };
+        },
+      ],
     ];
-    expect(createArgs.data.provider).toBe('google');
+    expect(createArgs.data.authMethods.create).toEqual({
+      type: 'GOOGLE',
+      identifier: 'google-sub-1',
+    });
+    expect(createArgs.data.socialLinks?.create).toEqual({
+      type: 'EMAIL',
+      value: 'new-user@example.com',
+    });
   });
 
   it('pulls the display name and avatar from the Google payload into the new profile', async () => {
     mockPayload({
       sub: 'google-sub-4',
-      email: 'new-user-2@example.com',
-      email_verified: true,
       name: 'John Doe',
       picture: 'https://example.com/avatar.jpg',
     });
-    prismaMock.user.findUnique.mockResolvedValue(null);
-    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.authMethod.findUnique.mockResolvedValue(null);
     prismaMock.user.create.mockResolvedValue({
       id: 'user-4',
-      login: 'google-sub-4',
-      googleId: 'google-sub-4',
-      provider: 'google',
       role: 'USER',
       profile: {
-        email: 'new-user-2@example.com',
         name: 'John Doe',
         avatarUrl: 'https://example.com/avatar.jpg',
       },
+      authMethods: [{ type: 'GOOGLE' }],
     });
 
     await service.authenticate({ idToken: 'token' });
@@ -99,51 +105,44 @@ describe('GoogleAuthService.authenticate', () => {
     );
   });
 
-  it('does not change provider when auto-linking an existing account by email', async () => {
-    mockPayload({
-      sub: 'google-sub-2',
-      email: 'existing@example.com',
-      email_verified: true,
-    });
-    prismaMock.user.findUnique.mockResolvedValue(null);
-    prismaMock.user.findFirst.mockResolvedValue({
-      id: 'user-2',
-      login: 'existing-login',
-      provider: null,
-      profile: { email: 'existing@example.com' },
-    });
-    prismaMock.user.update.mockResolvedValue({
-      id: 'user-2',
-      login: 'existing-login',
-      googleId: 'google-sub-2',
-      provider: null,
-      profile: { email: 'existing@example.com' },
+  it('does not create a SocialLink when the Google payload has no email', async () => {
+    mockPayload({ sub: 'google-sub-5' });
+    prismaMock.authMethod.findUnique.mockResolvedValue(null);
+    prismaMock.user.create.mockResolvedValue({
+      id: 'user-5',
+      role: 'USER',
+      profile: { name: null, avatarUrl: null },
+      authMethods: [{ type: 'GOOGLE' }],
     });
 
     await service.authenticate({ idToken: 'token' });
 
-    expect(prismaMock.user.create).not.toHaveBeenCalled();
-    expect(prismaMock.user.update).toHaveBeenCalledTimes(1);
-    const [[updateArgs]] = prismaMock.user.update.mock.calls as [
-      [{ where: { id: string }; data: Record<string, unknown> }],
+    const [[createArgs]] = prismaMock.user.create.mock.calls as [
+      [{ data: { socialLinks?: unknown } }],
     ];
-    expect(updateArgs.where).toEqual({ id: 'user-2' });
-    expect(updateArgs.data).toEqual({ googleId: 'google-sub-2' });
-    expect(updateArgs.data.provider).toBeUndefined();
+    expect(createArgs.data.socialLinks).toBeUndefined();
   });
 
-  it('returns the existing account as-is when found by googleId', async () => {
+  it('returns the existing account as-is when found by AuthMethod(GOOGLE)', async () => {
     mockPayload({ sub: 'google-sub-3' });
-    prismaMock.user.findUnique.mockResolvedValue({
+    prismaMock.authMethod.findUnique.mockResolvedValue({
+      userId: 'user-3',
+      type: 'GOOGLE',
+      identifier: 'google-sub-3',
+    });
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({
       id: 'user-3',
-      login: 'user-3-login',
-      provider: 'google',
-      profile: { email: null },
+      role: 'USER',
+      profile: { name: null, avatarUrl: null },
+      authMethods: [{ type: 'GOOGLE' }],
     });
 
     await service.authenticate({ idToken: 'token' });
 
     expect(prismaMock.user.create).not.toHaveBeenCalled();
-    expect(prismaMock.user.update).not.toHaveBeenCalled();
+    expect(prismaMock.user.findUniqueOrThrow).toHaveBeenCalledWith({
+      where: { id: 'user-3' },
+      include: { profile: true, authMethods: true },
+    });
   });
 });

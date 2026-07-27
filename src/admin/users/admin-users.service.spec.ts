@@ -1,5 +1,4 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { UserEntity } from '../../auth/entities/user.entity';
 import { Role } from '../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
@@ -25,7 +24,14 @@ describe('AdminUsersService', () => {
   describe('findAll', () => {
     it('returns a paginated list of users without filters', async () => {
       prismaMock.user.findMany.mockResolvedValue([
-        { id: 'u1', login: 'user1', role: Role.USER, passwordHash: 'hash' },
+        {
+          id: 'u1',
+          role: Role.USER,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+          profile: { name: 'user1' },
+          authMethods: [{ type: 'LOCAL' }],
+        },
       ]);
       prismaMock.user.count.mockResolvedValue(1);
 
@@ -34,13 +40,21 @@ describe('AdminUsersService', () => {
 
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
         where: {},
+        include: { profile: true, authMethods: true },
         skip: 0,
         take: 20,
         orderBy: undefined,
       });
       expect(prismaMock.user.count).toHaveBeenCalledWith({ where: {} });
       expect(result.items).toHaveLength(1);
-      expect(result.items[0]).toBeInstanceOf(UserEntity);
+      expect(result.items[0]).toEqual({
+        id: 'u1',
+        name: 'user1',
+        role: Role.USER,
+        authMethods: ['LOCAL'],
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+      });
       expect(result.meta).toEqual({
         page: 1,
         limit: 20,
@@ -49,22 +63,29 @@ describe('AdminUsersService', () => {
       });
     });
 
-    it('filters by login only', async () => {
+    it('filters by search only (matches Profile.name OR AuthMethod.identifier)', async () => {
       prismaMock.user.findMany.mockResolvedValue([]);
       prismaMock.user.count.mockResolvedValue(0);
 
       const query = new AdminUsersQueryDto();
-      query.login = 'john';
+      query.search = 'john';
       await service.findAll(query);
 
+      const expectedWhere = {
+        OR: [
+          { profile: { name: { contains: 'john' } } },
+          { authMethods: { some: { identifier: { contains: 'john' } } } },
+        ],
+      };
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
-        where: { login: { contains: 'john' } },
+        where: expectedWhere,
+        include: { profile: true, authMethods: true },
         skip: 0,
         take: 20,
         orderBy: undefined,
       });
       expect(prismaMock.user.count).toHaveBeenCalledWith({
-        where: { login: { contains: 'john' } },
+        where: expectedWhere,
       });
     });
 
@@ -78,6 +99,7 @@ describe('AdminUsersService', () => {
 
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
         where: { role: Role.ADMIN },
+        include: { profile: true, authMethods: true },
         skip: 0,
         take: 20,
         orderBy: undefined,
@@ -87,23 +109,31 @@ describe('AdminUsersService', () => {
       });
     });
 
-    it('combines login and role filters', async () => {
+    it('combines search and role filters', async () => {
       prismaMock.user.findMany.mockResolvedValue([]);
       prismaMock.user.count.mockResolvedValue(0);
 
       const query = new AdminUsersQueryDto();
-      query.login = 'john';
+      query.search = 'john';
       query.role = Role.ADMIN;
       await service.findAll(query);
 
+      const expectedWhere = {
+        OR: [
+          { profile: { name: { contains: 'john' } } },
+          { authMethods: { some: { identifier: { contains: 'john' } } } },
+        ],
+        role: Role.ADMIN,
+      };
       expect(prismaMock.user.findMany).toHaveBeenCalledWith({
-        where: { login: { contains: 'john' }, role: Role.ADMIN },
+        where: expectedWhere,
+        include: { profile: true, authMethods: true },
         skip: 0,
         take: 20,
         orderBy: undefined,
       });
       expect(prismaMock.user.count).toHaveBeenCalledWith({
-        where: { login: { contains: 'john' }, role: Role.ADMIN },
+        where: expectedWhere,
       });
     });
   });
@@ -112,16 +142,14 @@ describe('AdminUsersService', () => {
     it('returns full user detail data', async () => {
       prismaMock.user.findUnique.mockResolvedValue({
         id: 'u1',
-        login: 'user1',
         role: Role.USER,
-        provider: null,
         createdAt: new Date('2026-01-01'),
         updatedAt: new Date('2026-01-01'),
         profile: {
-          email: 'user1@example.com',
           name: 'User One',
           avatarUrl: '/uploads/avatar.png',
         },
+        authMethods: [{ type: 'LOCAL' }],
         gameAccounts: [{ id: 'ga1', userId: 'u1', nickname: 'nick' }],
         socialLinks: [{ id: 'sl1', userId: 'u1', type: 'TELEGRAM' }],
       });
@@ -130,17 +158,20 @@ describe('AdminUsersService', () => {
 
       expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'u1' },
-        include: { profile: true, gameAccounts: true, socialLinks: true },
+        include: {
+          profile: true,
+          gameAccounts: true,
+          socialLinks: true,
+          authMethods: true,
+        },
       });
       expect(result).toEqual({
         id: 'u1',
-        login: 'user1',
+        name: 'User One',
         role: Role.USER,
-        provider: null,
+        authMethods: ['LOCAL'],
         createdAt: new Date('2026-01-01'),
         updatedAt: new Date('2026-01-01'),
-        email: 'user1@example.com',
-        name: 'User One',
         avatarUrl: '/uploads/avatar.png',
         gameAccounts: [{ id: 'ga1', userId: 'u1', nickname: 'nick' }],
         socialLinks: [{ id: 'sl1', userId: 'u1', type: 'TELEGRAM' }],
@@ -150,19 +181,17 @@ describe('AdminUsersService', () => {
     it('falls back to null profile fields when profile is missing', async () => {
       prismaMock.user.findUnique.mockResolvedValue({
         id: 'u1',
-        login: 'user1',
         role: Role.USER,
-        provider: null,
         createdAt: new Date('2026-01-01'),
         updatedAt: new Date('2026-01-01'),
         profile: null,
+        authMethods: [],
         gameAccounts: [],
         socialLinks: [],
       });
 
       const result = await service.findOne('u1');
 
-      expect(result.email).toBeNull();
       expect(result.name).toBeNull();
       expect(result.avatarUrl).toBeNull();
     });

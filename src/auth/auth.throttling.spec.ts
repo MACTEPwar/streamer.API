@@ -21,14 +21,11 @@ describe('Auth throttling', () => {
 
   const rawUser = {
     id: 'user-1',
-    login: 'johndoe',
     role: Role.USER,
-    provider: null,
-    passwordHash: '$2b$10$hashedpassword',
-    googleId: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
-    profile: { email: null },
+    profile: { name: 'johndoe', avatarUrl: null },
+    authMethods: [{ type: 'LOCAL' }],
   };
 
   beforeAll(async () => {

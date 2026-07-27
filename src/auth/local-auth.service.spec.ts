@@ -1,14 +1,17 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LocalAuthService } from './local-auth.service';
 
-describe('LocalAuthService.changePassword', () => {
+describe('LocalAuthService', () => {
   let service: LocalAuthService;
   const prismaMock = {
     user: {
+      create: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+    },
+    authMethod: {
       findUnique: jest.fn(),
-      update: jest.fn(),
     },
   };
 
@@ -17,86 +20,110 @@ describe('LocalAuthService.changePassword', () => {
     service = new LocalAuthService(prismaMock as unknown as PrismaService);
   });
 
-  it('updates passwordHash when currentPassword matches', async () => {
-    const currentPasswordHash = await bcrypt.hash('current-secret', 4);
-    prismaMock.user.findUnique.mockResolvedValue({
-      id: 'user-1',
-      passwordHash: currentPasswordHash,
-    });
-    prismaMock.user.update.mockResolvedValue({});
+  describe('register', () => {
+    it('creates a User + Profile + Settings + AuthMethod(LOCAL) nested', async () => {
+      prismaMock.user.create.mockResolvedValue({
+        id: 'user-1',
+        role: 'USER',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+        profile: { name: 'johndoe', avatarUrl: null },
+        authMethods: [{ type: 'LOCAL' }],
+      });
 
-    await service.changePassword('user-1', {
-      currentPassword: 'current-secret',
-      newPassword: 'new-secret-1',
+      await service.register({ login: 'johndoe', password: 'secret123' });
+
+      expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
+      const [[createArgs]] = prismaMock.user.create.mock.calls as [
+        [
+          {
+            data: {
+              profile: { create: { name: string } };
+              authMethods: {
+                create: {
+                  type: string;
+                  identifier: string;
+                  passwordHash: string;
+                };
+              };
+            };
+          },
+        ],
+      ];
+      expect(createArgs.data.profile.create.name).toBe('johndoe');
+      expect(createArgs.data.authMethods.create.type).toBe('LOCAL');
+      expect(createArgs.data.authMethods.create.identifier).toBe('johndoe');
+      await expect(
+        bcrypt.compare(
+          'secret123',
+          createArgs.data.authMethods.create.passwordHash,
+        ),
+      ).resolves.toBe(true);
     });
 
-    expect(prismaMock.user.update).toHaveBeenCalledTimes(1);
-    const [[updateArgs]] = prismaMock.user.update.mock.calls as [
-      [{ where: { id: string }; data: { passwordHash: string } }],
-    ];
-    expect(updateArgs.where).toEqual({ id: 'user-1' });
-    expect(updateArgs.data.passwordHash).not.toBe(currentPasswordHash);
-    await expect(
-      bcrypt.compare('new-secret-1', updateArgs.data.passwordHash),
-    ).resolves.toBe(true);
+    it('throws ConflictException when the login (identifier) is already taken', async () => {
+      const { Prisma } = jest.requireActual('../generated/prisma/client') as {
+        Prisma: typeof import('../generated/prisma/client').Prisma;
+      };
+      prismaMock.user.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Duplicate', {
+          code: 'P2002',
+          clientVersion: '0.0.0',
+        }),
+      );
+
+      await expect(
+        service.register({ login: 'johndoe', password: 'secret123' }),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
-  it('throws UnauthorizedException when currentPassword does not match', async () => {
-    const currentPasswordHash = await bcrypt.hash('current-secret', 4);
-    prismaMock.user.findUnique.mockResolvedValue({
-      id: 'user-1',
-      passwordHash: currentPasswordHash,
+  describe('validateCredentials', () => {
+    it('resolves the user when the password matches', async () => {
+      const passwordHash = await bcrypt.hash('secret123', 4);
+      prismaMock.authMethod.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        passwordHash,
+      });
+      prismaMock.user.findUniqueOrThrow.mockResolvedValue({
+        id: 'user-1',
+        role: 'USER',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+        profile: { name: 'johndoe', avatarUrl: null },
+        authMethods: [{ type: 'LOCAL' }],
+      });
+
+      const result = await service.validateCredentials({
+        login: 'johndoe',
+        password: 'secret123',
+      });
+
+      expect(result.id).toBe('user-1');
+      expect(prismaMock.authMethod.findUnique).toHaveBeenCalledWith({
+        where: { type_identifier: { type: 'LOCAL', identifier: 'johndoe' } },
+      });
     });
 
-    await expect(
-      service.changePassword('user-1', {
-        currentPassword: 'wrong-secret',
-        newPassword: 'new-secret-1',
-      }),
-    ).rejects.toThrow(UnauthorizedException);
-    expect(prismaMock.user.update).not.toHaveBeenCalled();
-  });
+    it('throws UnauthorizedException when no LOCAL AuthMethod matches the login', async () => {
+      prismaMock.authMethod.findUnique.mockResolvedValue(null);
 
-  it('throws UnauthorizedException when user has no local password (e.g. Google-only)', async () => {
-    prismaMock.user.findUnique.mockResolvedValue({
-      id: 'user-1',
-      passwordHash: null,
+      await expect(
+        service.validateCredentials({ login: 'missing', password: 'x' }),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
-    await expect(
-      service.changePassword('user-1', {
-        currentPassword: 'anything',
-        newPassword: 'new-secret-1',
-      }),
-    ).rejects.toThrow(UnauthorizedException);
-    expect(prismaMock.user.update).not.toHaveBeenCalled();
-  });
+    it('throws UnauthorizedException when the password does not match', async () => {
+      const passwordHash = await bcrypt.hash('secret123', 4);
+      prismaMock.authMethod.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        passwordHash,
+      });
 
-  it('throws ForbiddenException when the account is a Google account', async () => {
-    prismaMock.user.findUnique.mockResolvedValue({
-      id: 'user-1',
-      passwordHash: null,
-      provider: 'google',
+      await expect(
+        service.validateCredentials({ login: 'johndoe', password: 'wrong' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(prismaMock.user.findUniqueOrThrow).not.toHaveBeenCalled();
     });
-
-    await expect(
-      service.changePassword('user-1', {
-        currentPassword: 'anything',
-        newPassword: 'new-secret-1',
-      }),
-    ).rejects.toThrow(ForbiddenException);
-    expect(prismaMock.user.update).not.toHaveBeenCalled();
-  });
-
-  it('throws UnauthorizedException when user does not exist', async () => {
-    prismaMock.user.findUnique.mockResolvedValue(null);
-
-    await expect(
-      service.changePassword('missing-user', {
-        currentPassword: 'anything',
-        newPassword: 'new-secret-1',
-      }),
-    ).rejects.toThrow(UnauthorizedException);
-    expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 });

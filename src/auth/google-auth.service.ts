@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OAuth2Client } from 'google-auth-library';
+import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { UserEntity } from './entities/user.entity';
@@ -23,60 +23,44 @@ export class GoogleAuthService {
   }
 
   async authenticate(dto: GoogleAuthDto): Promise<UserWithProfile> {
-    const payload = await this.verifyToken(dto.idToken);
+    const payload = await this.verifyIdToken(dto.idToken);
     const googleId = payload.sub;
 
-    const existingByGoogleId = await this.prisma.user.findUnique({
-      where: { googleId },
-      include: { profile: true },
+    const existing = await this.prisma.authMethod.findUnique({
+      where: { type_identifier: { type: 'GOOGLE', identifier: googleId } },
     });
-    if (existingByGoogleId) {
-      return this.toUserWithProfile(existingByGoogleId);
-    }
 
-    if (payload.email && payload.email_verified) {
-      const existingByEmail = await this.prisma.user.findFirst({
-        where: { profile: { email: payload.email } },
-        include: { profile: true },
+    if (existing) {
+      const user = await this.prisma.user.findUniqueOrThrow({
+        where: { id: existing.userId },
+        include: { profile: true, authMethods: true },
       });
-      if (existingByEmail) {
-        const updated = await this.prisma.user.update({
-          where: { id: existingByEmail.id },
-          data: { googleId },
-          include: { profile: true },
-        });
-        return this.toUserWithProfile(updated);
-      }
+      return this.toUserWithProfile(user);
     }
 
     const created = await this.prisma.user.create({
       data: {
-        login: googleId,
-        googleId,
-        provider: 'google',
         role: 'USER',
         profile: {
-          create: {
-            email: payload.email,
-            name: payload.name,
-            avatarUrl: payload.picture,
-          },
+          create: { name: payload.name, avatarUrl: payload.picture },
         },
         settings: { create: {} },
+        authMethods: { create: { type: 'GOOGLE', identifier: googleId } },
+        ...(payload.email && {
+          socialLinks: { create: { type: 'EMAIL', value: payload.email } },
+        }),
       },
-      include: { profile: true },
+      include: { profile: true, authMethods: true },
     });
     return this.toUserWithProfile(created);
   }
 
-  private toUserWithProfile({
-    profile,
-    ...user
-  }: PrismaUserWithProfile): UserWithProfile {
-    return Object.assign(new UserEntity(user), { profile });
-  }
-
-  private async verifyToken(idToken: string) {
+  /**
+   * Публичный, т.к. переиспользуется `AuthMethodsService` (`POST
+   * /auth/methods/google`) — верификация ID-токена одна на оба места, не
+   * дублируется.
+   */
+  async verifyIdToken(idToken: string): Promise<TokenPayload> {
     try {
       const ticket = await this.client.verifyIdToken({
         idToken,
@@ -90,5 +74,16 @@ export class GoogleAuthService {
     } catch {
       throw new UnauthorizedException(INVALID_TOKEN_MESSAGE);
     }
+  }
+
+  private toUserWithProfile({
+    profile,
+    authMethods,
+    ...user
+  }: PrismaUserWithProfile): UserWithProfile {
+    return Object.assign(new UserEntity(user), {
+      profile,
+      authMethods: authMethods.map(({ type }) => ({ type })),
+    });
   }
 }

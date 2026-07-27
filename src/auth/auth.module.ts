@@ -13,6 +13,8 @@ import { GoogleAuthService } from './google-auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { LocalAuthService } from './local-auth.service';
+import { AuthMethodsController } from './methods/auth-methods.controller';
+import { AuthMethodsService } from './methods/auth-methods.service';
 
 @Module({
   imports: [
@@ -32,13 +34,14 @@ import { LocalAuthService } from './local-auth.service';
       { ttl: AUTH_THROTTLE_TTL, limit: AUTH_THROTTLE_LIMIT },
     ]),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AuthMethodsController],
   providers: [
     AuthService,
     JwtAuthGuard,
     RolesGuard,
     LocalAuthService,
     GoogleAuthService,
+    AuthMethodsService,
     ThrottlerGuard,
   ],
   exports: [AuthService, JwtAuthGuard, RolesGuard, JwtModule],

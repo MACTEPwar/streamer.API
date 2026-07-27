@@ -7,9 +7,6 @@ export class ProfileDto {
   @ApiProperty({ example: 'cly1a2b3c0000abcd1234efgh' })
   userId: string;
 
-  @ApiProperty({ example: 'johndoe@example.com', nullable: true })
-  email: string | null;
-
   @ApiProperty({ example: 'John Doe', nullable: true })
   name: string | null;
 

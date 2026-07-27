@@ -5,11 +5,12 @@ import { PaginationQueryDto } from '../../../shared/dto/pagination-query.dto';
 
 export class AdminUsersQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'Login substring filter (case-insensitive)',
+    description:
+      'Substring filter (case-insensitive) — matches Profile.name or any AuthMethod.identifier',
   })
   @IsOptional()
   @IsString()
-  login?: string;
+  search?: string;
 
   @ApiPropertyOptional({ enum: Role })
   @IsOptional()
