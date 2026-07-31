@@ -1,4 +1,8 @@
-import { BadRequestException, INestApplication } from '@nestjs/common';
+import {
+  BadRequestException,
+  INestApplication,
+  NotFoundException,
+} from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
@@ -25,6 +29,8 @@ describe('AdminNewsController (guards)', () => {
 
   const adminNewsService = {
     create: jest.fn().mockResolvedValue({ id: 'news-1' }),
+    update: jest.fn().mockResolvedValue({ id: 'news-1' }),
+    remove: jest.fn().mockResolvedValue({ id: 'news-1' }),
   };
 
   const authService = {
@@ -108,5 +114,113 @@ describe('AdminNewsController (guards)', () => {
       .expect(400);
 
     expect((res.body as ErrorResponseDto).statusCode).toBe(400);
+  });
+
+  it('rejects PATCH without an auth cookie with 401', async () => {
+    const res = await request(app.getHttpServer())
+      .patch('/admin/news/news-1')
+      .send({ title: 'Updated' })
+      .expect(401);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(401);
+  });
+
+  it('rejects PATCH from a non-ADMIN user with 403', async () => {
+    authService.verifyToken.mockResolvedValue({ sub: 'u1', role: Role.USER });
+
+    const res = await request(app.getHttpServer())
+      .patch('/admin/news/news-1')
+      .set('Cookie', 'access_token=fake')
+      .send({ title: 'Updated' })
+      .expect(403);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(403);
+    expect(adminNewsService.update).not.toHaveBeenCalled();
+  });
+
+  it('allows PATCH from an ADMIN user', async () => {
+    authService.verifyToken.mockResolvedValue({
+      sub: 'admin1',
+      role: Role.ADMIN,
+    });
+
+    await request(app.getHttpServer())
+      .patch('/admin/news/news-1')
+      .set('Cookie', 'access_token=fake')
+      .send({ title: 'Updated' })
+      .expect(200);
+
+    expect(adminNewsService.update).toHaveBeenCalledWith('news-1', {
+      title: 'Updated',
+    });
+  });
+
+  it('returns 404 when updating a non-existent news item', async () => {
+    authService.verifyToken.mockResolvedValue({
+      sub: 'admin1',
+      role: Role.ADMIN,
+    });
+    adminNewsService.update.mockRejectedValueOnce(
+      new NotFoundException('Новость не найдена'),
+    );
+
+    const res = await request(app.getHttpServer())
+      .patch('/admin/news/missing')
+      .set('Cookie', 'access_token=fake')
+      .send({ title: 'Updated' })
+      .expect(404);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(404);
+  });
+
+  it('rejects DELETE without an auth cookie with 401', async () => {
+    const res = await request(app.getHttpServer())
+      .delete('/admin/news/news-1')
+      .expect(401);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(401);
+  });
+
+  it('rejects DELETE from a non-ADMIN user with 403', async () => {
+    authService.verifyToken.mockResolvedValue({ sub: 'u1', role: Role.USER });
+
+    const res = await request(app.getHttpServer())
+      .delete('/admin/news/news-1')
+      .set('Cookie', 'access_token=fake')
+      .expect(403);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(403);
+    expect(adminNewsService.remove).not.toHaveBeenCalled();
+  });
+
+  it('allows DELETE from an ADMIN user', async () => {
+    authService.verifyToken.mockResolvedValue({
+      sub: 'admin1',
+      role: Role.ADMIN,
+    });
+
+    await request(app.getHttpServer())
+      .delete('/admin/news/news-1')
+      .set('Cookie', 'access_token=fake')
+      .expect(200);
+
+    expect(adminNewsService.remove).toHaveBeenCalledWith('news-1');
+  });
+
+  it('returns 404 when deleting a non-existent news item', async () => {
+    authService.verifyToken.mockResolvedValue({
+      sub: 'admin1',
+      role: Role.ADMIN,
+    });
+    adminNewsService.remove.mockRejectedValueOnce(
+      new NotFoundException('Новость не найдена'),
+    );
+
+    const res = await request(app.getHttpServer())
+      .delete('/admin/news/missing')
+      .set('Cookie', 'access_token=fake')
+      .expect(404);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(404);
   });
 });

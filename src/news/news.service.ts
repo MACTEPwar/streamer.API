@@ -1,18 +1,22 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaginationQueryDto } from '../shared/dto/pagination-query.dto';
 import { buildPaginationMeta } from '../shared/pagination/paginate';
 import { LikeResponseDto } from './dto/like-response.dto';
 import { NewsDto } from './dto/news.dto';
+import { NewsQueryDto } from './dto/news-query.dto';
 import { NEWS_INCLUDE, toNewsDto } from './news.mapper';
 
 @Injectable()
 export class NewsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query: PaginationQueryDto, currentUserId?: string) {
+  async findAll(query: NewsQueryDto, currentUserId?: string) {
+    const where = this.buildWhere(query);
+
     const [items, total] = await Promise.all([
       this.prisma.news.findMany({
+        where,
         include: NEWS_INCLUDE,
         skip: (query.page - 1) * query.limit,
         take: query.limit,
@@ -20,7 +24,7 @@ export class NewsService {
           ? { [query.sortBy]: query.sortOrder }
           : { publishedAt: 'desc' },
       }),
-      this.prisma.news.count(),
+      this.prisma.news.count({ where }),
     ]);
 
     return {
@@ -60,6 +64,20 @@ export class NewsService {
     await this.prisma.newsLike.deleteMany({ where: { userId, newsId } });
 
     return this.buildLikeResponse(newsId, false);
+  }
+
+  private buildWhere(query: NewsQueryDto): Prisma.NewsWhereInput {
+    const where: Prisma.NewsWhereInput = {};
+
+    if (query.search) {
+      where.title = { contains: query.search };
+    }
+
+    if (query.tagId) {
+      where.tags = { some: { id: query.tagId } };
+    }
+
+    return where;
   }
 
   private async assertNewsExists(id: string): Promise<void> {

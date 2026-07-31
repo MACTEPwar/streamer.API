@@ -1,6 +1,7 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { NewsImageDownloadService } from '../../news/news-image-download.service';
+import { NEWS_INCLUDE } from '../../news/news.mapper';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdminNewsService } from './admin-news.service';
 
@@ -8,6 +9,10 @@ describe('AdminNewsService', () => {
   let service: AdminNewsService;
   const prismaMock = {
     $transaction: jest.fn(),
+    news: {
+      findUnique: jest.fn(),
+      delete: jest.fn(),
+    },
   };
   const newsImageDownloadServiceMock = {
     resolveImageUrls: jest.fn(),
@@ -98,5 +103,174 @@ describe('AdminNewsService', () => {
     );
 
     await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+  });
+
+  describe('update', () => {
+    it('throws NotFoundException when the news item does not exist', async () => {
+      prismaMock.news.findUnique.mockResolvedValue(null);
+
+      await expect(service.update('missing', { title: 'New' })).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(
+        newsImageDownloadServiceMock.resolveImageUrls,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('updates fields directly without touching images/tags when not provided', async () => {
+      prismaMock.news.findUnique.mockResolvedValue({ id: 'news-1' });
+      const txNewsUpdate = jest.fn().mockResolvedValue(sampleNews);
+      const txNewsImageDeleteMany = jest.fn();
+      prismaMock.$transaction.mockImplementation(
+        (callback: (tx: unknown) => unknown) =>
+          callback({
+            news: { update: txNewsUpdate },
+            newsImage: { deleteMany: txNewsImageDeleteMany },
+          }),
+      );
+
+      await service.update('news-1', { title: 'Updated title' });
+
+      expect(
+        newsImageDownloadServiceMock.resolveImageUrls,
+      ).not.toHaveBeenCalled();
+      expect(txNewsImageDeleteMany).not.toHaveBeenCalled();
+      expect(txNewsUpdate).toHaveBeenCalledWith({
+        where: { id: 'news-1' },
+        data: {
+          title: 'Updated title',
+          description: undefined,
+          publishedAt: undefined,
+          images: undefined,
+          tags: undefined,
+        },
+        include: NEWS_INCLUDE,
+      });
+    });
+
+    it('replaces tags with `set` instead of `connect`', async () => {
+      prismaMock.news.findUnique.mockResolvedValue({ id: 'news-1' });
+      const txNewsUpdate = jest.fn().mockResolvedValue(sampleNews);
+      prismaMock.$transaction.mockImplementation(
+        (callback: (tx: unknown) => unknown) =>
+          callback({
+            news: { update: txNewsUpdate },
+            newsImage: { deleteMany: jest.fn() },
+          }),
+      );
+
+      await service.update('news-1', { tagIds: ['tag-2'] });
+
+      expect(txNewsUpdate).toHaveBeenCalledWith({
+        where: { id: 'news-1' },
+        data: {
+          title: undefined,
+          description: undefined,
+          publishedAt: undefined,
+          images: undefined,
+          tags: { set: [{ id: 'tag-2' }] },
+        },
+        include: NEWS_INCLUDE,
+      });
+    });
+
+    it('replaces images by deleting existing NewsImage rows and creating the new set', async () => {
+      prismaMock.news.findUnique.mockResolvedValue({ id: 'news-1' });
+      newsImageDownloadServiceMock.resolveImageUrls.mockResolvedValue({
+        resolved: [{ url: '/uploads/kept.jpg' }, { url: '/uploads/new.png' }],
+        downloadedFilePaths: ['/abs/path/uploads/new.png'],
+      });
+      const txNewsUpdate = jest.fn().mockResolvedValue(sampleNews);
+      const txNewsImageDeleteMany = jest.fn();
+      prismaMock.$transaction.mockImplementation(
+        (callback: (tx: unknown) => unknown) =>
+          callback({
+            news: { update: txNewsUpdate },
+            newsImage: { deleteMany: txNewsImageDeleteMany },
+          }),
+      );
+
+      await service.update('news-1', {
+        imageUrls: ['/uploads/kept.jpg', 'https://example.com/pic.png'],
+      });
+
+      expect(txNewsImageDeleteMany).toHaveBeenCalledWith({
+        where: { newsId: 'news-1' },
+      });
+      expect(txNewsUpdate).toHaveBeenCalledWith({
+        where: { id: 'news-1' },
+        data: {
+          title: undefined,
+          description: undefined,
+          publishedAt: undefined,
+          images: {
+            create: [
+              { url: '/uploads/kept.jpg', order: 0 },
+              { url: '/uploads/new.png', order: 1 },
+            ],
+          },
+          tags: undefined,
+        },
+        include: NEWS_INCLUDE,
+      });
+      expect(newsImageDownloadServiceMock.cleanup).not.toHaveBeenCalled();
+    });
+
+    it('cleans up newly downloaded files when the transaction fails', async () => {
+      prismaMock.news.findUnique.mockResolvedValue({ id: 'news-1' });
+      newsImageDownloadServiceMock.resolveImageUrls.mockResolvedValue({
+        resolved: [{ url: '/uploads/new.png' }],
+        downloadedFilePaths: ['/abs/path/uploads/new.png'],
+      });
+      prismaMock.$transaction.mockRejectedValue(new Error('db error'));
+
+      await expect(
+        service.update('news-1', {
+          imageUrls: ['https://example.com/pic.png'],
+        }),
+      ).rejects.toThrow('db error');
+
+      expect(newsImageDownloadServiceMock.cleanup).toHaveBeenCalledWith([
+        '/abs/path/uploads/new.png',
+      ]);
+    });
+
+    it('maps a missing tagId (P2025) to a 400 BadRequestException', async () => {
+      prismaMock.news.findUnique.mockResolvedValue({ id: 'news-1' });
+      prismaMock.$transaction.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Record not found', {
+          code: 'P2025',
+          clientVersion: '0.0.0',
+        }),
+      );
+
+      await expect(
+        service.update('news-1', { tagIds: ['missing-tag'] }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('remove', () => {
+    it('deletes the news item and returns the mapped DTO', async () => {
+      prismaMock.news.findUnique.mockResolvedValue({ id: 'news-1' });
+      prismaMock.news.delete.mockResolvedValue(sampleNews);
+
+      const result = await service.remove('news-1');
+
+      expect(prismaMock.news.delete).toHaveBeenCalledWith({
+        where: { id: 'news-1' },
+        include: NEWS_INCLUDE,
+      });
+      expect(result.id).toBe('news-1');
+    });
+
+    it('throws NotFoundException when the news item does not exist', async () => {
+      prismaMock.news.findUnique.mockResolvedValue(null);
+
+      await expect(service.remove('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prismaMock.news.delete).not.toHaveBeenCalled();
+    });
   });
 });
