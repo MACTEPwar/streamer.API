@@ -10,7 +10,9 @@ describe('NewsTagController', () => {
   const newsTagService = {
     findAll: jest
       .fn()
-      .mockResolvedValue([{ id: 'tag-1', name: 'Турниры', color: '#fff' }]),
+      .mockResolvedValue([
+        { id: 'tag-1', name: 'Турниры', color: '#fff', textColor: '#000' },
+      ]),
   };
 
   beforeAll(async () => {
@@ -32,6 +34,8 @@ describe('NewsTagController', () => {
       .get('/news-tags')
       .expect(200);
 
-    expect(res.body).toEqual([{ id: 'tag-1', name: 'Турниры', color: '#fff' }]);
+    expect(res.body).toEqual([
+      { id: 'tag-1', name: 'Турниры', color: '#fff', textColor: '#000' },
+    ]);
   });
 });

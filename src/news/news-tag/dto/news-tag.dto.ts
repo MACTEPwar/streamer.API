@@ -10,6 +10,9 @@ export class NewsTagDto {
   @ApiProperty({ example: '#FF5733' })
   color: string;
 
+  @ApiProperty({ example: '#FFFFFF' })
+  textColor: string;
+
   @ApiProperty({ example: '2026-07-31T12:00:00.000Z' })
   createdAt: Date;
 

@@ -35,6 +35,7 @@ describe('NewsService', () => {
         id: 'tag-1',
         name: 'Турниры',
         color: '#fff',
+        textColor: '#000',
         createdAt: new Date('2026-01-01'),
         updatedAt: new Date('2026-01-01'),
       },

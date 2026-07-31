@@ -15,4 +15,11 @@ export class UpdateNewsTagDto {
   @IsNotEmpty()
   @MaxLength(20)
   color?: string;
+
+  @ApiPropertyOptional({ example: '#FFFFFF', maxLength: 20 })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
+  textColor?: string;
 }
