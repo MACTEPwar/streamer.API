@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { envValidationSchema } from './config/env.validation';
 import { DonatorsModule } from './donators/donators.module';
 import { HealthModule } from './health/health.module';
+import { NewsModule } from './news/news.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { ScheduleModule } from './schedule/schedule.module';
@@ -25,6 +26,7 @@ import { UploadModule } from './upload/upload.module';
     AuthModule,
     AdminModule,
     DonatorsModule,
+    NewsModule,
     ProfileModule,
     ScheduleModule,
     SettingsModule,
