@@ -32,6 +32,7 @@ model User {
   gameAccounts GameAccount[]
   socialLinks  SocialLink[]
   authMethods  AuthMethod[]
+  newsLikes    NewsLike[]
 }
 
 model Profile {
@@ -123,4 +124,50 @@ model Schedule {
   isOnline   Boolean @default(false)
   eventTitle String?
   time       String?
+}
+
+model News {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @db.Text
+  publishedAt DateTime @default(now())
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  images NewsImage[]
+  tags   NewsTag[]
+  likes  NewsLike[]
+}
+
+model NewsImage {
+  id        String   @id @default(cuid())
+  newsId    String
+  url       String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+}
+
+model NewsTag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  news News[]
+}
+
+model NewsLike {
+  id        String   @id @default(cuid())
+  userId    String
+  newsId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, newsId])
 }

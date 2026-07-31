@@ -57,7 +57,10 @@
   - `AdminUsersQueryDto` (`users/dto/admin-users-query.dto.ts`, **#63**) — `extends PaginationQueryDto`, `search?: string` (`@IsOptional() @IsString()`, заменил `login`) и `role?: Role`
   - `AdminUserDto` (`users/dto/admin-user.dto.ts`, **#63**, breaking) — `id`, `name: string | null` (из `Profile`, заменил `login`), `role`, `authMethods: AuthMethodType[]` (заменил `provider`), `createdAt`, `updatedAt`
   - `AdminUserDetailDto` (`users/dto/admin-user-detail.dto.ts`, **#63**) — `extends AdminUserDto`, добавляет `avatarUrl` (nullable, `email` убран — email теперь только `SocialLink(type=EMAIL)`, виден через `socialLinks[]`) и `gameAccounts: GameAccountDto[]`/`socialLinks: SocialLinkDto[]`
-- `imports: [AuthModule]` — для DI-резолва `JwtAuthGuard`/`RolesGuard`
+  - `AdminNewsService` (`news/admin-news.service.ts`, #65) — `create(dto: CreateNewsDto)`: сначала `NewsImageDownloadService.resolveImageUrls(dto.imageUrls)` (скачивание/валидация вне транзакции — сетевые запросы не должны держать транзакцию БД открытой), затем `prisma.$transaction` создаёт `News` + вложенные `NewsImage` (`order` — порядковый индекс в массиве) + `tags: { connect }`; любая ошибка на шаге БД (включая P2025 — несуществующий `tagId`, транслируется в `400`) вызывает `NewsImageDownloadService.cleanup()` для уже скачанных в этом вызове файлов — на диске не остаётся файлов-сирот
+  - `AdminNewsController` (`news/admin-news.controller.ts`, #65) — `@Controller('admin/news')`, `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(Role.ADMIN)`, `POST` (создание новости)
+  - `AdminNewsTagsController` (`news-tags/admin-news-tags.controller.ts`, #65) — `@Controller('admin/news-tags')`, тот же guard-стек, `POST`/`PATCH :id`/`DELETE :id` — тонкий контроллер поверх `NewsTagService` (импортирован из `NewsModule`, отдельного admin-сервиса не заводили — CRUD тегов не отличается между слоями)
+- `imports: [AuthModule, NewsModule]` — `AuthModule` для DI-резолва `JwtAuthGuard`/`RolesGuard`, `NewsModule` — для `NewsTagService`/`NewsImageDownloadService` (используются `AdminNewsTagsController`/`AdminNewsService`)
 
 ### ProfileModule
 - Путь: `src/profile/`
@@ -105,6 +108,19 @@
   - `DonatorsController` (`donators.controller.ts`) — `GET /donators/top`, публичный, без guard'ов
 - Не входит (см. issue #40): реальная интеграция с конкретным провайдером — только мок + env-плейсхолдер; пагинация (список всегда ≤5)
 
+### NewsModule
+- Путь: `src/news/`
+- Назначение: публичная лента новостей (список/детально), теги новостей (публичный список), лайки (агрегатный счётчик + флаг текущего пользователя, требует авторизации). Просмотры (`viewCount`) — только поле-счётчик в модели, инкремент не реализован (отдельная задача). Создание новости и полный CRUD тегов — admin-функции, см. `AdminModule` ниже (`admin/news/`, `admin/news-tags/`), переиспользуют сервисы отсюда.
+- Компоненты:
+  - `NewsService` (`news.service.ts`) — `findAll(query, currentUserId?)` (пагинация через `PaginationQueryDto`/`buildPaginationMeta`, `orderBy` по умолчанию `publishedAt desc`), `findOne(id, currentUserId?)` (`404` если не найдена), `like(userId, newsId)`/`unlike(userId, newsId)` — идемпотентны через `newsLike.upsert`/`deleteMany` (composite unique `userId_newsId`), возвращают актуальный `likeCount` + `likedByCurrentUser`
+  - `news.mapper.ts` — `NEWS_INCLUDE` (общий Prisma `include`: `images`, `tags`, `likes: { select: { userId } }`, `_count.likes`) и `toNewsDto(news, currentUserId?)` — общая функция маппинга в `NewsDto`, переиспользуется `NewsService` и `AdminNewsService` (после создания новости)
+  - `NewsController` (`news.controller.ts`) — `@Controller('news')`, публичный `GET`/`GET :id` (без guard — `req.user?.id` опционально, `likedByCurrentUser: null` без сессии), `POST`/`DELETE :id/like` защищены `JwtAuthGuard`
+  - `NewsTagService` (`news-tag/news-tag.service.ts`) — `findAll()`, `create(dto)`/`update(id, dto)`/`remove(id)` (используются admin-контроллером); `409 ConflictException` при дубликате `name` (`P2002`), `404 NotFoundException` если тега нет
+  - `NewsTagController` (`news-tag/news-tag.controller.ts`) — `@Controller('news-tags')`, публичный `GET` (список тегов, `orderBy: name asc`)
+  - `NewsImageDownloadService` (`news-image-download.service.ts`) — `resolveImageUrls(imageUrls: string[])`: для каждого URL — если уже `/uploads/*` (`UPLOADS_URL_PREFIX`), проверяет физическое существование файла на диске (`400` если нет, отдельно блокирует `..`/`/` в имени — path traversal); иначе скачивает внешнюю http(s)-ссылку тем же механизмом, что `POST /upload` (имя файла `randomUUID()+extension` по `MIME_EXTENSION_MAP`, лимит `MAX_UPLOAD_SIZE_BYTES`, обрыв стрима по факту превышения, не постфактум). SSRF-защита (первый прецедент в репо): протокол только `http`/`https`, `dns.lookup(hostname, {all:true})` до запроса — блок приватных/loopback/link-local диапазонов (`utils/private-ip.util.ts`: `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `0.0.0.0/8`, `::1`, `fc00::/7`, `fe80::/10`), редиректы намеренно не следуются (`redirect: 'manual'`, любой `3xx` — отказ) — иначе SSRF-проверка обходится редиректом на публичный домен, таймаут 10с (`AbortController`). Возвращает `{ resolved: { url }[], downloadedFilePaths: string[] }` — `downloadedFilePaths` содержит только пути **новых** скачанных файлов этого вызова (не уже существующих `/uploads/*`), передаются в `cleanup(filePaths)` при последующей ошибке (например сбой записи в БД) — не оставляет частично сохранённые файлы на диске. Любая ошибка на любом шаге — `400 BadRequestException`, вся операция откатывается
+  - `IsImageSource` (`dto/is-image-source.decorator.ts`) — кастомный class-validator декоратор: значение либо существующий `/uploads/*` путь, либо валидный `http(s)` URL (`@IsUrl()` в одиночку отклоняет первый случай — сознательное отступление от изначально предполагавшегося `@IsUrl({}, {each:true})` в пользу корректности, см. streamer.API#65)
+- `imports: [AuthModule]`, `exports: [NewsTagService, NewsImageDownloadService]` — `AdminModule` импортирует `NewsModule` для доступа к обоим сервисам вместо повторной регистрации
+
 ### UploadModule
 - Путь: `src/upload/`
 - Назначение: `POST /upload` — приём файла (multipart), сохранение на локальную ФС сервера (`uploads/` в корне проекта, не в git), возврат публичного URL. Загрузка защищена `JwtAuthGuard`, отдача самих файлов по URL — публична, без авторизации (см. `useStaticAssets` в `src/main.ts`).
@@ -137,6 +153,10 @@
 - `SocialLinkType` (enum, #46) — `EMAIL` \| `TELEGRAM` \| `TIKTOK` \| `PHONE` \| `VIBER`
 - `GameAccount` (#46) — 1:N с `User` (`userId`, `onDelete: Cascade`, без `@unique` — пользователь может иметь несколько игровых аккаунтов), `nickname` (`String`), `externalId` (`String` — id аккаунта в игре, намеренно не `id`, чтобы не путать с PK строки), `createdAt`/`updatedAt`; CRUD API — `GameAccountModule` (см. ProfileModule выше, #47)
 - `SocialLink` (#46) — 1:N с `User` (`userId`, `onDelete: Cascade`), `type` (`SocialLinkType`), `value` (`String`, произвольный формат — валидация под конкретный `type` не входит в #46/#48, только длина/непустота); CRUD API — `SocialLinkController`/`SocialLinkService` (см. ProfileModule выше, #48)
+- `News` (#65) — `title`, `description` (`@db.Text`), `publishedAt` (default `now()`, можно переопределить при создании), `viewCount` (default `0`, только счётчик — инкремент не реализован), `createdAt`/`updatedAt`; связи `images: NewsImage[]`, `tags: NewsTag[]` (implicit many-to-many, Prisma сама создаёт join-таблицу), `likes: NewsLike[]`
+- `NewsImage` (#65) — 1:N с `News` (`newsId`, `onDelete: Cascade`) — отдельная модель, а не `String[]` (MySQL/Prisma не поддерживает нативный scalar-массив), `url` (всегда `/uploads/*`, никогда внешний URL — см. `NewsImageDownloadService`), `order` (порядок отображения)
+- `NewsTag` (#65) — `name` (`@unique`), `color`, `createdAt`/`updatedAt`; `news: News[]` — implicit many-to-many с `News`
+- `NewsLike` (#65) — 1:N с `User` (`userId`, `onDelete: Cascade`) и `News` (`newsId`, `onDelete: Cascade`), `@@unique([userId, newsId])` (составной unique, тот же паттерн, что `AuthMethod.@@unique([type, identifier])`) — не даёт поставить лайк дважды, используется для идемпотентного `upsert` в `NewsService.like()`
 
 ## Глобальная инфраструктура
 
@@ -182,6 +202,15 @@
 - `GET /donators/top` — `src/donators/donators.controller.ts` — публичный, до 5 донатеров (`{ nickname, amount }`), отсортированы по убыванию суммы
 - `GET /schedule` — `src/schedule/schedule.controller.ts` — публичный, возвращает все 7 дней недели в порядке Пн→Вс
 - `PATCH /schedule/:weekday` — `src/schedule/schedule.controller.ts` — защищён `JwtAuthGuard` + `RolesGuard(ADMIN)`, обновляет один день; `401` без сессии, `403` не-ADMIN, `400` невалидный `:weekday`
+- `GET /news` — `src/news/news.controller.ts` (#65) — публичный, пагинированный список новостей (`{ items, meta }`), сортировка по умолчанию `publishedAt desc`; `likedByCurrentUser: null` без авторизации
+- `GET /news/:id` — `src/news/news.controller.ts` (#65) — публичный, детальная новость (заголовок/описание/картинки/теги/`likeCount`/`viewCount`/`likedByCurrentUser`); `404` если не найдена
+- `POST /news/:id/like` — `src/news/news.controller.ts` (#65) — защищён `JwtAuthGuard`, ставит лайк текущего пользователя (идемпотентно); `401` без сессии, `404` если новость не найдена
+- `DELETE /news/:id/like` — `src/news/news.controller.ts` (#65) — защищён `JwtAuthGuard`, снимает лайк текущего пользователя (идемпотентно); `401` без сессии, `404` если новость не найдена
+- `GET /news-tags` — `src/news/news-tag/news-tag.controller.ts` (#65) — публичный, список всех тегов новостей (`orderBy: name asc`)
+- `POST /admin/news` — `src/admin/news/admin-news.controller.ts` (#65) — защищён `JwtAuthGuard` + `RolesGuard(ADMIN)`, создаёт новость (`title`/`description`/`imageUrls[]`/`publishedAt?`/`tagIds[]`); внешние ссылки в `imageUrls` скачиваются и заменяются на `/uploads/*`; `400` при невалидной/недоступной/приватной ссылке на картинку (SSRF-блок), превышении размера, недопустимом MIME, несуществующем `tagId`; `401` без сессии, `403` не-ADMIN
+- `POST /admin/news-tags` — `src/admin/news-tags/admin-news-tags.controller.ts` (#65) — защищён `JwtAuthGuard` + `RolesGuard(ADMIN)`, создаёт тег (`name`/`color`); `409` при занятом `name`; `401`/`403` как выше
+- `PATCH /admin/news-tags/:id` — `src/admin/news-tags/admin-news-tags.controller.ts` (#65) — защищён `JwtAuthGuard` + `RolesGuard(ADMIN)`, обновляет тег; `404` если `:id` не существует, `409` при занятом `name`
+- `DELETE /admin/news-tags/:id` — `src/admin/news-tags/admin-news-tags.controller.ts` (#65) — защищён `JwtAuthGuard` + `RolesGuard(ADMIN)`, удаляет тег; `404` если `:id` не существует
 
 ## Сервисы
 
@@ -197,6 +226,10 @@
 - `SettingsService` — `src/settings/settings.service.ts` — см. SettingsModule выше
 - `DonatorsService` — `src/donators/donators.service.ts` — см. DonatorsModule выше
 - `ScheduleService` — `src/schedule/schedule.service.ts` — см. ScheduleModule выше
+- `NewsService` — `src/news/news.service.ts` — см. NewsModule выше
+- `NewsTagService` — `src/news/news-tag/news-tag.service.ts` — см. NewsModule выше
+- `NewsImageDownloadService` — `src/news/news-image-download.service.ts` — см. NewsModule выше
+- `AdminNewsService` — `src/admin/news/admin-news.service.ts` — см. AdminModule выше
 
 ## Опции окружения / feature-флаги
 
