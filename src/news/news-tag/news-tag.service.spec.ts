@@ -36,10 +36,14 @@ describe('NewsTagService', () => {
     it('creates a tag', async () => {
       prismaMock.newsTag.create.mockResolvedValue({});
 
-      await service.create({ name: 'Турниры', color: '#fff' });
+      await service.create({
+        name: 'Турниры',
+        color: '#fff',
+        textColor: '#000',
+      });
 
       expect(prismaMock.newsTag.create).toHaveBeenCalledWith({
-        data: { name: 'Турниры', color: '#fff' },
+        data: { name: 'Турниры', color: '#fff', textColor: '#000' },
       });
     });
 
@@ -52,7 +56,7 @@ describe('NewsTagService', () => {
       );
 
       await expect(
-        service.create({ name: 'Турниры', color: '#fff' }),
+        service.create({ name: 'Турниры', color: '#fff', textColor: '#000' }),
       ).rejects.toThrow(ConflictException);
     });
   });

@@ -21,15 +21,24 @@ describe('AdminNewsTagsController (guards)', () => {
   let app: INestApplication;
 
   const newsTagService = {
-    create: jest
-      .fn()
-      .mockResolvedValue({ id: 'tag-1', name: 'Турниры', color: '#fff' }),
-    update: jest
-      .fn()
-      .mockResolvedValue({ id: 'tag-1', name: 'Новое имя', color: '#fff' }),
-    remove: jest
-      .fn()
-      .mockResolvedValue({ id: 'tag-1', name: 'Турниры', color: '#fff' }),
+    create: jest.fn().mockResolvedValue({
+      id: 'tag-1',
+      name: 'Турниры',
+      color: '#fff',
+      textColor: '#000',
+    }),
+    update: jest.fn().mockResolvedValue({
+      id: 'tag-1',
+      name: 'Новое имя',
+      color: '#fff',
+      textColor: '#000',
+    }),
+    remove: jest.fn().mockResolvedValue({
+      id: 'tag-1',
+      name: 'Турниры',
+      color: '#fff',
+      textColor: '#000',
+    }),
   };
 
   const authService = {
@@ -63,7 +72,7 @@ describe('AdminNewsTagsController (guards)', () => {
   it('rejects POST without an auth cookie with 401', async () => {
     const res = await request(app.getHttpServer())
       .post('/admin/news-tags')
-      .send({ name: 'Турниры', color: '#fff' })
+      .send({ name: 'Турниры', color: '#fff', textColor: '#000' })
       .expect(401);
 
     expect((res.body as ErrorResponseDto).statusCode).toBe(401);
@@ -75,7 +84,7 @@ describe('AdminNewsTagsController (guards)', () => {
     const res = await request(app.getHttpServer())
       .post('/admin/news-tags')
       .set('Cookie', 'access_token=fake')
-      .send({ name: 'Турниры', color: '#fff' })
+      .send({ name: 'Турниры', color: '#fff', textColor: '#000' })
       .expect(403);
 
     expect((res.body as ErrorResponseDto).statusCode).toBe(403);
@@ -91,12 +100,13 @@ describe('AdminNewsTagsController (guards)', () => {
     await request(app.getHttpServer())
       .post('/admin/news-tags')
       .set('Cookie', 'access_token=fake')
-      .send({ name: 'Турниры', color: '#fff' })
+      .send({ name: 'Турниры', color: '#fff', textColor: '#000' })
       .expect(201);
 
     expect(newsTagService.create).toHaveBeenCalledWith({
       name: 'Турниры',
       color: '#fff',
+      textColor: '#000',
     });
   });
 
@@ -112,7 +122,7 @@ describe('AdminNewsTagsController (guards)', () => {
     const res = await request(app.getHttpServer())
       .post('/admin/news-tags')
       .set('Cookie', 'access_token=fake')
-      .send({ name: 'Турниры', color: '#fff' })
+      .send({ name: 'Турниры', color: '#fff', textColor: '#000' })
       .expect(409);
 
     expect((res.body as ErrorResponseDto).statusCode).toBe(409);

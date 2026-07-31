@@ -13,4 +13,10 @@ export class CreateNewsTagDto {
   @IsNotEmpty()
   @MaxLength(20)
   color: string;
+
+  @ApiProperty({ example: '#FFFFFF', maxLength: 20 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
+  textColor: string;
 }

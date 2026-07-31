@@ -34,6 +34,7 @@ export function toNewsDto(
       id: tag.id,
       name: tag.name,
       color: tag.color,
+      textColor: tag.textColor,
       createdAt: tag.createdAt,
       updatedAt: tag.updatedAt,
     })),
