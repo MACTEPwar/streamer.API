@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaginationQueryDto } from '../shared/dto/pagination-query.dto';
+import { NewsQueryDto } from './dto/news-query.dto';
 import { NewsService } from './news.service';
 
 describe('NewsService', () => {
@@ -53,7 +53,7 @@ describe('NewsService', () => {
       prismaMock.news.findMany.mockResolvedValue([sampleNews]);
       prismaMock.news.count.mockResolvedValue(1);
 
-      const query = new PaginationQueryDto();
+      const query = new NewsQueryDto();
       const result = await service.findAll(query, 'u1');
 
       expect(result.items).toHaveLength(1);
@@ -75,9 +75,61 @@ describe('NewsService', () => {
       prismaMock.news.findMany.mockResolvedValue([sampleNews]);
       prismaMock.news.count.mockResolvedValue(1);
 
-      const result = await service.findAll(new PaginationQueryDto());
+      const result = await service.findAll(new NewsQueryDto());
 
       expect(result.items[0].likedByCurrentUser).toBeNull();
+    });
+
+    it('filters by title substring when `search` is provided', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.search = 'турнир';
+      await service.findAll(query);
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { title: { contains: 'турнир' } },
+        }),
+      );
+      expect(prismaMock.news.count).toHaveBeenCalledWith({
+        where: { title: { contains: 'турнир' } },
+      });
+    });
+
+    it('filters by tagId when provided', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.tagId = 'tag-1';
+      await service.findAll(query);
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tags: { some: { id: 'tag-1' } } },
+        }),
+      );
+    });
+
+    it('combines search and tagId filters', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.search = 'турнир';
+      query.tagId = 'tag-1';
+      await service.findAll(query);
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            title: { contains: 'турнир' },
+            tags: { some: { id: 'tag-1' } },
+          },
+        }),
+      );
     });
   });
 

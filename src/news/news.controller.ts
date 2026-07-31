@@ -8,13 +8,13 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiPaginatedResponse } from '../shared/decorators/api-paginated-response.decorator';
 import { ErrorResponseDto } from '../shared/dto/error-response.dto';
-import { PaginationQueryDto } from '../shared/dto/pagination-query.dto';
 import { LikeResponseDto } from './dto/like-response.dto';
+import { NewsQueryDto } from './dto/news-query.dto';
 import { NewsDto } from './dto/news.dto';
 import { NewsService } from './news.service';
 
@@ -25,7 +25,17 @@ export class NewsController {
 
   @Get()
   @ApiPaginatedResponse(NewsDto)
-  findAll(@Query() query: PaginationQueryDto, @Req() req: Request) {
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Substring filter (case-insensitive) — matches News.title',
+  })
+  @ApiQuery({
+    name: 'tagId',
+    required: false,
+    description: 'Filter by a specific NewsTag id',
+  })
+  findAll(@Query() query: NewsQueryDto, @Req() req: Request) {
     return this.newsService.findAll(query, req.user?.id);
   }
 

@@ -62,6 +62,18 @@ describe('NewsController (guards)', () => {
     );
   });
 
+  it('forwards search/tagId query params to the service', async () => {
+    await request(app.getHttpServer())
+      .get('/news')
+      .query({ search: 'турнир', tagId: 'tag-1' })
+      .expect(200);
+
+    expect(newsService.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ search: 'турнир', tagId: 'tag-1' }),
+      undefined,
+    );
+  });
+
   it('allows GET /news/:id without authentication', async () => {
     await request(app.getHttpServer()).get('/news/news-1').expect(200);
 
