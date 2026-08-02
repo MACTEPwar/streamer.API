@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -12,7 +12,8 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { CardImagePosition } from '../../../generated/prisma/enums';
+import { WIRE_CARD_IMAGE_POSITIONS } from '../pinned-grid-image-position.util';
+import type { WireCardImagePosition } from '../pinned-grid-image-position.util';
 
 export class UpdatePinnedGridConfigDto {
   @ApiProperty({ example: 3 })
@@ -27,9 +28,9 @@ export class UpdatePinnedGridConfigDto {
 }
 
 export class UpdatePinnedNewsSlotStyleDto {
-  @ApiProperty({ enum: CardImagePosition, example: CardImagePosition.TOP })
-  @IsEnum(CardImagePosition)
-  imagePosition: CardImagePosition;
+  @ApiProperty({ enum: WIRE_CARD_IMAGE_POSITIONS, example: 'top' })
+  @IsIn(WIRE_CARD_IMAGE_POSITIONS)
+  imagePosition: WireCardImagePosition;
 
   @ApiProperty({ example: 50 })
   @IsInt()

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { CardImagePosition } from '../../../generated/prisma/enums';
+import { WIRE_CARD_IMAGE_POSITIONS } from '../pinned-grid-image-position.util';
+import type { WireCardImagePosition } from '../pinned-grid-image-position.util';
 
 export class PinnedGridConfigDto {
   @ApiProperty({ example: 3 })
@@ -10,8 +11,8 @@ export class PinnedGridConfigDto {
 }
 
 export class PinnedNewsSlotStyleDto {
-  @ApiProperty({ enum: CardImagePosition, example: CardImagePosition.TOP })
-  imagePosition: CardImagePosition;
+  @ApiProperty({ enum: WIRE_CARD_IMAGE_POSITIONS, example: 'top' })
+  imagePosition: WireCardImagePosition;
 
   @ApiProperty({ example: 50 })
   imageSizePercent: number;

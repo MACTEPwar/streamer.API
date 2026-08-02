@@ -21,7 +21,7 @@ describe('PinnedGridService', () => {
   };
 
   const style = {
-    imagePosition: CardImagePosition.TOP,
+    imagePosition: 'top' as const,
     imageSizePercent: 50,
     imageScale: 1,
     imageOffsetX: 50,
@@ -68,6 +68,7 @@ describe('PinnedGridService', () => {
       expect(result.config).toEqual({ columns: 3, rows: 12 });
       expect(result.slots).toHaveLength(1);
       expect(result.slots[0].newsId).toBe('news-1');
+      expect(result.slots[0].style.imagePosition).toBe('top');
     });
 
     it('throws NotFoundException when the layout does not exist (P2025)', async () => {
@@ -187,7 +188,7 @@ describe('PinnedGridService', () => {
                 rowStart: 1,
                 colSpan: 1,
                 rowSpan: 1,
-                imagePosition: style.imagePosition,
+                imagePosition: CardImagePosition.TOP,
                 imageSizePercent: style.imageSizePercent,
                 imageScale: style.imageScale,
                 imageOffsetX: style.imageOffsetX,
@@ -202,6 +203,44 @@ describe('PinnedGridService', () => {
         include: { slots: true },
       });
       expect(result.config).toEqual({ columns: 3, rows: 12 });
+    });
+
+    it('retries the transaction on a deadlock (P2034) and succeeds', async () => {
+      prismaMock.news.findMany.mockResolvedValue([{ id: 'news-1' }]);
+      const deadlock = new Prisma.PrismaClientKnownRequestError(
+        'Transaction failed due to a write conflict or a deadlock. Please retry your transaction',
+        { code: 'P2034', clientVersion: '0.0.0' },
+      );
+      prismaMock.$transaction
+        .mockRejectedValueOnce(deadlock)
+        .mockImplementationOnce((callback: (tx: unknown) => unknown) =>
+          callback({
+            pinnedGridLayout: {
+              findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'layout-1' }),
+              update: jest.fn().mockResolvedValue({ columns: 3, rows: 12, slots: [] }),
+            },
+            pinnedNewsSlot: { deleteMany: jest.fn() },
+          }),
+        );
+
+      const result = await service.updateLayout(PinnedGridViewport.LARGE, baseDto);
+
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
+      expect(result.config).toEqual({ columns: 3, rows: 12 });
+    });
+
+    it('gives up after exhausting deadlock retries', async () => {
+      prismaMock.news.findMany.mockResolvedValue([{ id: 'news-1' }]);
+      const deadlock = new Prisma.PrismaClientKnownRequestError(
+        'Transaction failed due to a write conflict or a deadlock. Please retry your transaction',
+        { code: 'P2034', clientVersion: '0.0.0' },
+      );
+      prismaMock.$transaction.mockRejectedValue(deadlock);
+
+      await expect(
+        service.updateLayout(PinnedGridViewport.LARGE, baseDto),
+      ).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(3);
     });
   });
 });
