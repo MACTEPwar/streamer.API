@@ -17,6 +17,22 @@ async function seedSchedule(prisma: PrismaClient) {
   console.log('Schedule: 7 дней недели проверены/созданы (дефолт — offline).');
 }
 
+async function seedPinnedGridLayouts(prisma: PrismaClient) {
+  const viewports = ['SMALL', 'MIDDLE', 'LARGE'] as const;
+
+  for (const viewport of viewports) {
+    await prisma.pinnedGridLayout.upsert({
+      where: { viewport },
+      update: {},
+      create: { viewport, columns: 3, rows: 12 },
+    });
+  }
+
+  console.log(
+    'PinnedGridLayout: 3 пресета вьюпорта проверены/созданы (3 колонки × 12 строк, без слотов).',
+  );
+}
+
 async function seedAdmin(prisma: PrismaClient) {
   const login = process.env.SEED_ADMIN_LOGIN;
   const password = process.env.SEED_ADMIN_PASSWORD;
@@ -59,6 +75,7 @@ async function main() {
   const prisma = new PrismaClient({ adapter });
 
   await seedSchedule(prisma);
+  await seedPinnedGridLayouts(prisma);
   await seedAdmin(prisma);
 
   await prisma.$disconnect();

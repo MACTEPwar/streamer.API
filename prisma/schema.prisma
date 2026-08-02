@@ -135,9 +135,10 @@ model News {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  images NewsImage[]
-  tags   NewsTag[]
-  likes  NewsLike[]
+  images      NewsImage[]
+  tags        NewsTag[]
+  likes       NewsLike[]
+  pinnedSlots PinnedNewsSlot[]
 }
 
 model NewsImage {
@@ -171,4 +172,52 @@ model NewsLike {
   news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
 
   @@unique([userId, newsId])
+}
+
+enum PinnedGridViewport {
+  SMALL
+  MIDDLE
+  LARGE
+}
+
+enum CardImagePosition {
+  TOP
+  RIGHT
+  BOTTOM
+  LEFT
+}
+
+model PinnedGridLayout {
+  id        String             @id @default(cuid())
+  viewport  PinnedGridViewport @unique
+  columns   Int
+  rows      Int
+  updatedAt DateTime           @updatedAt
+
+  slots PinnedNewsSlot[]
+}
+
+model PinnedNewsSlot {
+  id       String @id @default(cuid())
+  layoutId String
+  newsId   String
+
+  colStart Int
+  rowStart Int
+  colSpan  Int
+  rowSpan  Int
+
+  imagePosition    CardImagePosition @default(TOP)
+  imageSizePercent Int               @default(50)
+  imageScale       Float             @default(1)
+  imageOffsetX     Int               @default(50)
+  imageOffsetY     Int               @default(50)
+  backgroundColor  String            @default("#f9f9f9")
+  textColor        String            @default("#1e1e1e")
+  coverImageUrl    String?
+
+  createdAt DateTime @default(now())
+
+  layout PinnedGridLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  news   News             @relation(fields: [newsId], references: [id], onDelete: Cascade)
 }
