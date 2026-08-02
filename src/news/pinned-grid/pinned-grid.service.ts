@@ -6,7 +6,18 @@ import {
   UpdatePinnedGridLayoutDto,
   UpdatePinnedNewsSlotDto,
 } from './dto/update-pinned-grid-layout.dto';
+import { toPrismaImagePosition } from './pinned-grid-image-position.util';
 import { PINNED_LAYOUT_INCLUDE, toPinnedGridLayoutDto } from './pinned-grid.mapper';
+
+/**
+ * Сколько раз повторить транзакцию `updateLayout()` при дедлоке (Prisma
+ * `P2034` — "Transaction failed due to a write conflict or a deadlock",
+ * официально рекомендованный Prisma сценарий retry, не признак бага):
+ * конкурентные сохранения одного и того же вьюпорта (двойной клик
+ * "Сохранить", параллельная правка в двух вкладках) конкурируют за
+ * `delete`+`create` дочерних слотов той же строки `PinnedGridLayout`.
+ */
+const DEADLOCK_RETRY_LIMIT = 3;
 
 @Injectable()
 export class PinnedGridService {
@@ -46,43 +57,54 @@ export class PinnedGridService {
       throw new BadRequestException(errors.join('; '));
     }
 
-    const layout = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.pinnedGridLayout.findUniqueOrThrow({
-        where: { viewport },
-      });
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const layout = await this.prisma.$transaction(async (tx) => {
+          const existing = await tx.pinnedGridLayout.findUniqueOrThrow({
+            where: { viewport },
+          });
 
-      await tx.pinnedNewsSlot.deleteMany({
-        where: { layoutId: existing.id },
-      });
+          await tx.pinnedNewsSlot.deleteMany({
+            where: { layoutId: existing.id },
+          });
 
-      return tx.pinnedGridLayout.update({
-        where: { viewport },
-        data: {
-          columns: dto.config.columns,
-          rows: dto.config.rows,
-          slots: {
-            create: dto.slots.map((slot) => ({
-              newsId: slot.newsId,
-              colStart: slot.colStart,
-              rowStart: slot.rowStart,
-              colSpan: slot.colSpan,
-              rowSpan: slot.rowSpan,
-              imagePosition: slot.style.imagePosition,
-              imageSizePercent: slot.style.imageSizePercent,
-              imageScale: slot.style.imageScale,
-              imageOffsetX: slot.style.imageOffsetX,
-              imageOffsetY: slot.style.imageOffsetY,
-              backgroundColor: slot.style.backgroundColor,
-              textColor: slot.style.textColor,
-              coverImageUrl: slot.coverImageUrl ?? null,
-            })),
-          },
-        },
-        include: PINNED_LAYOUT_INCLUDE,
-      });
-    });
+          return tx.pinnedGridLayout.update({
+            where: { viewport },
+            data: {
+              columns: dto.config.columns,
+              rows: dto.config.rows,
+              slots: {
+                create: dto.slots.map((slot) => ({
+                  newsId: slot.newsId,
+                  colStart: slot.colStart,
+                  rowStart: slot.rowStart,
+                  colSpan: slot.colSpan,
+                  rowSpan: slot.rowSpan,
+                  imagePosition: toPrismaImagePosition(slot.style.imagePosition),
+                  imageSizePercent: slot.style.imageSizePercent,
+                  imageScale: slot.style.imageScale,
+                  imageOffsetX: slot.style.imageOffsetX,
+                  imageOffsetY: slot.style.imageOffsetY,
+                  backgroundColor: slot.style.backgroundColor,
+                  textColor: slot.style.textColor,
+                  coverImageUrl: slot.coverImageUrl ?? null,
+                })),
+              },
+            },
+            include: PINNED_LAYOUT_INCLUDE,
+          });
+        });
 
-    return toPinnedGridLayoutDto(layout);
+        return toPinnedGridLayoutDto(layout);
+      } catch (error) {
+        const isDeadlock =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2034';
+        if (!isDeadlock || attempt >= DEADLOCK_RETRY_LIMIT) {
+          throw error;
+        }
+      }
+    }
   }
 
   private async assertNewsExists(

@@ -1,5 +1,6 @@
 import { Prisma } from '../../generated/prisma/client';
 import { PinnedGridLayoutDto } from './dto/pinned-grid-layout.dto';
+import { toWireImagePosition } from './pinned-grid-image-position.util';
 
 export const PINNED_LAYOUT_INCLUDE = {
   slots: true,
@@ -24,7 +25,7 @@ export function toPinnedGridLayoutDto(
       colSpan: slot.colSpan,
       rowSpan: slot.rowSpan,
       style: {
-        imagePosition: slot.imagePosition,
+        imagePosition: toWireImagePosition(slot.imagePosition),
         imageSizePercent: slot.imageSizePercent,
         imageScale: slot.imageScale,
         imageOffsetX: slot.imageOffsetX,
