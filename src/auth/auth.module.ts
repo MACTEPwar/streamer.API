@@ -11,6 +11,7 @@ import {
 } from './constants/throttle.constant';
 import { GoogleAuthService } from './google-auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { LocalAuthService } from './local-auth.service';
 import { AuthMethodsController } from './methods/auth-methods.controller';
@@ -38,12 +39,19 @@ import { AuthMethodsService } from './methods/auth-methods.service';
   providers: [
     AuthService,
     JwtAuthGuard,
+    OptionalJwtAuthGuard,
     RolesGuard,
     LocalAuthService,
     GoogleAuthService,
     AuthMethodsService,
     ThrottlerGuard,
   ],
-  exports: [AuthService, JwtAuthGuard, RolesGuard, JwtModule],
+  exports: [
+    AuthService,
+    JwtAuthGuard,
+    OptionalJwtAuthGuard,
+    RolesGuard,
+    JwtModule,
+  ],
 })
 export class AuthModule {}

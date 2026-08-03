@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { Role } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErrorResponseDto } from '../shared/dto/error-response.dto';
@@ -41,6 +42,7 @@ describe('NewsController (guards)', () => {
         { provide: AuthService, useValue: authService },
         { provide: PrismaService, useValue: {} },
         JwtAuthGuard,
+        OptionalJwtAuthGuard,
         { provide: APP_FILTER, useClass: AllExceptionsFilter },
       ],
     }).compile();
@@ -77,10 +79,32 @@ describe('NewsController (guards)', () => {
     );
   });
 
+  it('forwards the authenticated user id to GET /news when the auth cookie is valid', async () => {
+    authService.verifyToken.mockResolvedValue({ sub: 'u1', role: Role.USER });
+
+    await request(app.getHttpServer())
+      .get('/news')
+      .set('Cookie', 'access_token=fake')
+      .expect(200);
+
+    expect(newsService.findAll).toHaveBeenCalledWith(expect.anything(), 'u1');
+  });
+
   it('allows GET /news/:id without authentication', async () => {
     await request(app.getHttpServer()).get('/news/news-1').expect(200);
 
     expect(newsService.findOne).toHaveBeenCalledWith('news-1', undefined);
+  });
+
+  it('forwards the authenticated user id to GET /news/:id when the auth cookie is valid', async () => {
+    authService.verifyToken.mockResolvedValue({ sub: 'u1', role: Role.USER });
+
+    await request(app.getHttpServer())
+      .get('/news/news-1')
+      .set('Cookie', 'access_token=fake')
+      .expect(200);
+
+    expect(newsService.findOne).toHaveBeenCalledWith('news-1', 'u1');
   });
 
   it('returns 404 for a non-existent news item', async () => {

@@ -11,6 +11,7 @@ import {
 import { ApiOkResponse, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { ApiPaginatedResponse } from '../shared/decorators/api-paginated-response.decorator';
 import { ErrorResponseDto } from '../shared/dto/error-response.dto';
 import { LikeResponseDto } from './dto/like-response.dto';
@@ -25,6 +26,7 @@ export class NewsController {
   constructor(private readonly newsService: NewsService) {}
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiPaginatedResponse(NewsDto)
   @ApiQuery({
     name: 'search',
@@ -41,6 +43,7 @@ export class NewsController {
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOkResponse({ type: NewsDto })
   @ApiResponse({ status: 404, type: ErrorResponseDto })
   findOne(@Param('id') id: string, @Req() req: Request): Promise<NewsDto> {
