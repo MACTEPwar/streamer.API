@@ -33,6 +33,7 @@ model User {
   socialLinks  SocialLink[]
   authMethods  AuthMethod[]
   newsLikes    NewsLike[]
+  newsViews    NewsView[]
 }
 
 model Profile {
@@ -138,6 +139,7 @@ model News {
   images      NewsImage[]
   tags        NewsTag[]
   likes       NewsLike[]
+  views       NewsView[]
   pinnedSlots PinnedNewsSlot[]
 }
 
@@ -163,6 +165,18 @@ model NewsTag {
 }
 
 model NewsLike {
+  id        String   @id @default(cuid())
+  userId    String
+  newsId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, newsId])
+}
+
+model NewsView {
   id        String   @id @default(cuid())
   userId    String
   newsId    String

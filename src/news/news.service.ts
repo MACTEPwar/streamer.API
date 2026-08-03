@@ -5,6 +5,7 @@ import { buildPaginationMeta } from '../shared/pagination/paginate';
 import { LikeResponseDto } from './dto/like-response.dto';
 import { NewsDto } from './dto/news.dto';
 import { NewsQueryDto } from './dto/news-query.dto';
+import { ViewResponseDto } from './dto/view-response.dto';
 import { NEWS_INCLUDE, toNewsDto } from './news.mapper';
 
 @Injectable()
@@ -64,6 +65,36 @@ export class NewsService {
     await this.prisma.newsLike.deleteMany({ where: { userId, newsId } });
 
     return this.buildLikeResponse(newsId, false);
+  }
+
+  async markViewed(userId: string, newsId: string): Promise<ViewResponseDto> {
+    await this.assertNewsExists(newsId);
+
+    try {
+      const [, news] = await this.prisma.$transaction([
+        this.prisma.newsView.create({ data: { userId, newsId } }),
+        this.prisma.news.update({
+          where: { id: newsId },
+          data: { viewCount: { increment: 1 } },
+        }),
+      ]);
+
+      return { viewCount: news.viewCount, viewedByCurrentUser: true };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const news = await this.prisma.news.findUniqueOrThrow({
+          where: { id: newsId },
+          select: { viewCount: true },
+        });
+
+        return { viewCount: news.viewCount, viewedByCurrentUser: true };
+      }
+
+      throw error;
+    }
   }
 
   private buildWhere(query: NewsQueryDto): Prisma.NewsWhereInput {

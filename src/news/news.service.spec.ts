@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NewsQueryDto } from './dto/news-query.dto';
 import { NewsService } from './news.service';
@@ -10,12 +11,18 @@ describe('NewsService', () => {
       findMany: jest.fn(),
       count: jest.fn(),
       findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+      update: jest.fn(),
     },
     newsLike: {
       upsert: jest.fn(),
       deleteMany: jest.fn(),
       count: jest.fn(),
     },
+    newsView: {
+      create: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
 
   const sampleNews = {
@@ -41,6 +48,7 @@ describe('NewsService', () => {
       },
     ],
     likes: [{ userId: 'u1' }],
+    views: [{ userId: 'u1' }],
     _count: { likes: 1 },
   };
 
@@ -200,6 +208,48 @@ describe('NewsService', () => {
         NotFoundException,
       );
       expect(prismaMock.newsLike.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('markViewed', () => {
+    it('creates a NewsView and increments viewCount on first view', async () => {
+      prismaMock.news.findUnique.mockResolvedValue({ id: 'news-1' });
+      prismaMock.$transaction.mockResolvedValue([{}, { viewCount: 5 }]);
+
+      const result = await service.markViewed('u1', 'news-1');
+
+      expect(prismaMock.newsView.create).toHaveBeenCalledWith({
+        data: { userId: 'u1', newsId: 'news-1' },
+      });
+      expect(prismaMock.news.update).toHaveBeenCalledWith({
+        where: { id: 'news-1' },
+        data: { viewCount: { increment: 1 } },
+      });
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ viewCount: 5, viewedByCurrentUser: true });
+    });
+
+    it('does not increment viewCount again on a repeated view (unique constraint)', async () => {
+      prismaMock.news.findUnique.mockResolvedValue({ id: 'news-1' });
+      const uniqueError = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        { code: 'P2002', clientVersion: '0.0.0' },
+      );
+      prismaMock.$transaction.mockRejectedValue(uniqueError);
+      prismaMock.news.findUniqueOrThrow.mockResolvedValue({ viewCount: 5 });
+
+      const result = await service.markViewed('u1', 'news-1');
+
+      expect(result).toEqual({ viewCount: 5, viewedByCurrentUser: true });
+    });
+
+    it('throws NotFoundException when the news item does not exist', async () => {
+      prismaMock.news.findUnique.mockResolvedValue(null);
+
+      await expect(service.markViewed('u1', 'missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
   });
 });

@@ -28,6 +28,13 @@ export class NewsDto {
   })
   likedByCurrentUser: boolean | null;
 
+  @ApiProperty({
+    example: false,
+    nullable: true,
+    description: 'null, если запрос выполнен без авторизации',
+  })
+  viewedByCurrentUser: boolean | null;
+
   @ApiProperty({ type: [NewsImageDto] })
   images: NewsImageDto[];
 

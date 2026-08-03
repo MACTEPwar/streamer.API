@@ -24,6 +24,9 @@ describe('NewsController (guards)', () => {
     unlike: jest
       .fn()
       .mockResolvedValue({ likeCount: 0, likedByCurrentUser: false }),
+    markViewed: jest
+      .fn()
+      .mockResolvedValue({ viewCount: 1, viewedByCurrentUser: true }),
   };
 
   const authService = {
@@ -128,5 +131,24 @@ describe('NewsController (guards)', () => {
       .expect(200);
 
     expect(newsService.unlike).toHaveBeenCalledWith('u1', 'news-1');
+  });
+
+  it('rejects POST /news/:id/view without an auth cookie with 401', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/news/news-1/view')
+      .expect(401);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(401);
+  });
+
+  it('marks a news item as viewed for an authenticated user', async () => {
+    authService.verifyToken.mockResolvedValue({ sub: 'u1', role: Role.USER });
+
+    await request(app.getHttpServer())
+      .post('/news/news-1/view')
+      .set('Cookie', 'access_token=fake')
+      .expect(201);
+
+    expect(newsService.markViewed).toHaveBeenCalledWith('u1', 'news-1');
   });
 });

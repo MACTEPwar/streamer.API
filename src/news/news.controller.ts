@@ -16,6 +16,7 @@ import { ErrorResponseDto } from '../shared/dto/error-response.dto';
 import { LikeResponseDto } from './dto/like-response.dto';
 import { NewsQueryDto } from './dto/news-query.dto';
 import { NewsDto } from './dto/news.dto';
+import { ViewResponseDto } from './dto/view-response.dto';
 import { NewsService } from './news.service';
 
 @ApiTags('news')
@@ -65,5 +66,17 @@ export class NewsController {
     @Req() req: Request,
   ): Promise<LikeResponseDto> {
     return this.newsService.unlike(req.user!.id, id);
+  }
+
+  @Post(':id/view')
+  @UseGuards(JwtAuthGuard)
+  @ApiOkResponse({ type: ViewResponseDto })
+  @ApiResponse({ status: 401, type: ErrorResponseDto })
+  @ApiResponse({ status: 404, type: ErrorResponseDto })
+  markViewed(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ): Promise<ViewResponseDto> {
+    return this.newsService.markViewed(req.user!.id, id);
   }
 }

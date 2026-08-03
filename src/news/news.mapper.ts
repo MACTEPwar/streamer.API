@@ -5,6 +5,7 @@ export const NEWS_INCLUDE = {
   images: true,
   tags: true,
   likes: { select: { userId: true } },
+  views: { select: { userId: true } },
   _count: { select: { likes: true } },
 } as const;
 
@@ -25,6 +26,9 @@ export function toNewsDto(
     likeCount: news._count.likes,
     likedByCurrentUser: currentUserId
       ? news.likes.some((like) => like.userId === currentUserId)
+      : null,
+    viewedByCurrentUser: currentUserId
+      ? news.views.some((view) => view.userId === currentUserId)
       : null,
     images: news.images
       .slice()
