@@ -133,6 +133,7 @@ model News {
   description String   @db.Text
   publishedAt DateTime @default(now())
   viewCount   Int      @default(0)
+  hasNoImage  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

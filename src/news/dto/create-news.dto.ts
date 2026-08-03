@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsOptional,
@@ -43,4 +44,12 @@ export class CreateNewsDto {
   @IsArray()
   @IsString({ each: true })
   tagIds: string[];
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Новость осознанно опубликована без фото',
+  })
+  @IsOptional()
+  @IsBoolean()
+  hasNoImage?: boolean;
 }

@@ -23,6 +23,7 @@ export function toNewsDto(
     description: news.description,
     publishedAt: news.publishedAt,
     viewCount: news.viewCount,
+    hasNoImage: news.hasNoImage,
     likeCount: news._count.likes,
     likedByCurrentUser: currentUserId
       ? news.likes.some((like) => like.userId === currentUserId)

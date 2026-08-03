@@ -74,4 +74,35 @@ describe('CreateNewsDto', () => {
 
     expect(errors.some((error) => error.property === 'tagIds')).toBe(true);
   });
+
+  it('passes validation without optional hasNoImage', async () => {
+    const dto = plainToInstance(CreateNewsDto, valid);
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('passes validation with hasNoImage true and an empty imageUrls array', async () => {
+    const dto = plainToInstance(CreateNewsDto, {
+      ...valid,
+      imageUrls: [],
+      hasNoImage: true,
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('fails validation when hasNoImage is not a boolean', async () => {
+    const dto = plainToInstance(CreateNewsDto, {
+      ...valid,
+      hasNoImage: 'yes',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === 'hasNoImage')).toBe(true);
+  });
 });

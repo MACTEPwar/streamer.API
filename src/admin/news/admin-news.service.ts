@@ -34,6 +34,7 @@ export class AdminNewsService {
             publishedAt: dto.publishedAt
               ? new Date(dto.publishedAt)
               : undefined,
+            hasNoImage: dto.hasNoImage,
             images: {
               create: resolved.map((image, index) => ({
                 url: image.url,
@@ -83,6 +84,7 @@ export class AdminNewsService {
             publishedAt: dto.publishedAt
               ? new Date(dto.publishedAt)
               : undefined,
+            hasNoImage: dto.hasNoImage,
             images: resolvedImages
               ? {
                   create: resolvedImages.map((image, index) => ({

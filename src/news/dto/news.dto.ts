@@ -18,6 +18,12 @@ export class NewsDto {
   @ApiProperty({ example: 0 })
   viewCount: number;
 
+  @ApiProperty({
+    example: false,
+    description: 'Новость осознанно опубликована без фото',
+  })
+  hasNoImage: boolean;
+
   @ApiProperty({ example: 42 })
   likeCount: number;
 

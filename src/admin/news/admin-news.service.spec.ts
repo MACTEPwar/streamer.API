@@ -32,6 +32,7 @@ describe('AdminNewsService', () => {
     description: dto.description,
     publishedAt: new Date('2026-01-01'),
     viewCount: 0,
+    hasNoImage: false,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     images: [],
@@ -65,6 +66,32 @@ describe('AdminNewsService', () => {
     );
     expect(result.id).toBe('news-1');
     expect(newsImageDownloadServiceMock.cleanup).not.toHaveBeenCalled();
+  });
+
+  it('persists hasNoImage on create', async () => {
+    newsImageDownloadServiceMock.resolveImageUrls.mockResolvedValue({
+      resolved: [],
+      downloadedFilePaths: [],
+    });
+    const txNewsCreate = jest.fn().mockResolvedValue(sampleNews);
+    prismaMock.$transaction.mockImplementation(
+      (callback: (tx: unknown) => unknown) =>
+        callback({ news: { create: txNewsCreate } }),
+    );
+
+    await service.create({ ...dto, imageUrls: [], hasNoImage: true });
+
+    expect(txNewsCreate).toHaveBeenCalledWith({
+      data: {
+        title: dto.title,
+        description: dto.description,
+        publishedAt: undefined,
+        hasNoImage: true,
+        images: { create: [] },
+        tags: { connect: [{ id: 'tag-1' }] },
+      },
+      include: NEWS_INCLUDE,
+    });
   });
 
   it('cleans up downloaded files when the database transaction fails', async () => {
@@ -141,6 +168,34 @@ describe('AdminNewsService', () => {
           title: 'Updated title',
           description: undefined,
           publishedAt: undefined,
+          hasNoImage: undefined,
+          images: undefined,
+          tags: undefined,
+        },
+        include: NEWS_INCLUDE,
+      });
+    });
+
+    it('persists hasNoImage when provided', async () => {
+      prismaMock.news.findUnique.mockResolvedValue({ id: 'news-1' });
+      const txNewsUpdate = jest.fn().mockResolvedValue(sampleNews);
+      prismaMock.$transaction.mockImplementation(
+        (callback: (tx: unknown) => unknown) =>
+          callback({
+            news: { update: txNewsUpdate },
+            newsImage: { deleteMany: jest.fn() },
+          }),
+      );
+
+      await service.update('news-1', { hasNoImage: true });
+
+      expect(txNewsUpdate).toHaveBeenCalledWith({
+        where: { id: 'news-1' },
+        data: {
+          title: undefined,
+          description: undefined,
+          publishedAt: undefined,
+          hasNoImage: true,
           images: undefined,
           tags: undefined,
         },
@@ -167,6 +222,7 @@ describe('AdminNewsService', () => {
           title: undefined,
           description: undefined,
           publishedAt: undefined,
+          hasNoImage: undefined,
           images: undefined,
           tags: { set: [{ id: 'tag-2' }] },
         },
@@ -203,6 +259,7 @@ describe('AdminNewsService', () => {
           title: undefined,
           description: undefined,
           publishedAt: undefined,
+          hasNoImage: undefined,
           images: {
             create: [
               { url: '/uploads/kept.jpg', order: 0 },
