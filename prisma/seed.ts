@@ -18,7 +18,7 @@ async function seedSchedule(prisma: PrismaClient) {
 }
 
 async function seedPinnedGridLayouts(prisma: PrismaClient) {
-  const viewports = ['SMALL', 'MIDDLE', 'LARGE'] as const;
+  const viewports = ['SMALL', 'LARGE'] as const;
 
   for (const viewport of viewports) {
     await prisma.pinnedGridLayout.upsert({
@@ -29,7 +29,7 @@ async function seedPinnedGridLayouts(prisma: PrismaClient) {
   }
 
   console.log(
-    'PinnedGridLayout: 3 пресета вьюпорта проверены/созданы (3 колонки × 12 строк, без слотов).',
+    'PinnedGridLayout: 2 пресета вьюпорта проверены/созданы (3 колонки × 12 строк, без размещений).',
   );
 }
 

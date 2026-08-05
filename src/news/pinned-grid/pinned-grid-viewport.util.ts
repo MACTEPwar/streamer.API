@@ -3,7 +3,6 @@ import { PinnedGridViewport } from '../../generated/prisma/enums';
 
 const VIEWPORT_BY_PARAM: Record<string, PinnedGridViewport> = {
   small: PinnedGridViewport.SMALL,
-  middle: PinnedGridViewport.MIDDLE,
   large: PinnedGridViewport.LARGE,
 };
 

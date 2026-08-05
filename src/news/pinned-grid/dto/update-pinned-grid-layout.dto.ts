@@ -5,7 +5,6 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   Max,
@@ -37,24 +36,6 @@ export class UpdatePinnedNewsSlotStyleDto {
   @Min(0)
   @Max(100)
   imageSizePercent: number;
-
-  @ApiProperty({ example: 1 })
-  @IsNumber()
-  @Min(1)
-  @Max(3)
-  imageScale: number;
-
-  @ApiProperty({ example: 50 })
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  imageOffsetX: number;
-
-  @ApiProperty({ example: 50 })
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  imageOffsetY: number;
 
   @ApiProperty({ example: '#f9f9f9' })
   @IsString()

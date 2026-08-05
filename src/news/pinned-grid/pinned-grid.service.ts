@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, PinnedGridViewport } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PinnedGridLayoutDto } from './dto/pinned-grid-layout.dto';
@@ -7,7 +11,10 @@ import {
   UpdatePinnedNewsSlotDto,
 } from './dto/update-pinned-grid-layout.dto';
 import { toPrismaImagePosition } from './pinned-grid-image-position.util';
-import { PINNED_LAYOUT_INCLUDE, toPinnedGridLayoutDto } from './pinned-grid.mapper';
+import {
+  PINNED_LAYOUT_INCLUDE,
+  toPinnedGridLayoutDto,
+} from './pinned-grid.mapper';
 
 /**
  * Сколько раз повторить транзакцию `updateLayout()` при дедлоке (Prisma
@@ -64,33 +71,62 @@ export class PinnedGridService {
             where: { viewport },
           });
 
-          await tx.pinnedNewsSlot.deleteMany({
+          // Позиции этой раскладки полностью заменяются (тот же паттерн,
+          // что был у PinnedNewsSlot); identity+стиль (PinnedNews) — общие
+          // между раскладками, поэтому upsert по newsId, не delete+create.
+          await tx.pinnedPlacement.deleteMany({
             where: { layoutId: existing.id },
           });
 
-          return tx.pinnedGridLayout.update({
+          for (const slot of dto.slots) {
+            const pinnedNews = await tx.pinnedNews.upsert({
+              where: { newsId: slot.newsId },
+              create: {
+                newsId: slot.newsId,
+                coverImageUrl: slot.coverImageUrl ?? null,
+                imagePosition: toPrismaImagePosition(slot.style.imagePosition),
+                imageSizePercent: slot.style.imageSizePercent,
+                backgroundColor: slot.style.backgroundColor,
+                textColor: slot.style.textColor,
+              },
+              update: {
+                coverImageUrl: slot.coverImageUrl ?? null,
+                imagePosition: toPrismaImagePosition(slot.style.imagePosition),
+                imageSizePercent: slot.style.imageSizePercent,
+                backgroundColor: slot.style.backgroundColor,
+                textColor: slot.style.textColor,
+              },
+            });
+
+            await tx.pinnedPlacement.create({
+              data: {
+                pinnedNewsId: pinnedNews.id,
+                layoutId: existing.id,
+                colStart: slot.colStart,
+                rowStart: slot.rowStart,
+                colSpan: slot.colSpan,
+                rowSpan: slot.rowSpan,
+              },
+            });
+          }
+
+          await tx.pinnedGridLayout.update({
             where: { viewport },
             data: {
               columns: dto.config.columns,
               rows: dto.config.rows,
-              slots: {
-                create: dto.slots.map((slot) => ({
-                  newsId: slot.newsId,
-                  colStart: slot.colStart,
-                  rowStart: slot.rowStart,
-                  colSpan: slot.colSpan,
-                  rowSpan: slot.rowSpan,
-                  imagePosition: toPrismaImagePosition(slot.style.imagePosition),
-                  imageSizePercent: slot.style.imageSizePercent,
-                  imageScale: slot.style.imageScale,
-                  imageOffsetX: slot.style.imageOffsetX,
-                  imageOffsetY: slot.style.imageOffsetY,
-                  backgroundColor: slot.style.backgroundColor,
-                  textColor: slot.style.textColor,
-                  coverImageUrl: slot.coverImageUrl ?? null,
-                })),
-              },
             },
+          });
+
+          // Мусор: PinnedNews, оставшийся без размещения ни в одной из
+          // раскладок (снят с этой, а в другой его и не было) — идентичность
+          // + стиль без позиции нигде не отображаются, чистим сразу.
+          await tx.pinnedNews.deleteMany({
+            where: { placements: { none: {} } },
+          });
+
+          return tx.pinnedGridLayout.findUniqueOrThrow({
+            where: { viewport },
             include: PINNED_LAYOUT_INCLUDE,
           });
         });

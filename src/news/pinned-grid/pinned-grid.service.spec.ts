@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma, PinnedGridViewport } from '../../generated/prisma/client';
 import { CardImagePosition } from '../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PINNED_LAYOUT_INCLUDE } from './pinned-grid.mapper';
 import { PinnedGridService } from './pinned-grid.service';
 
 describe('PinnedGridService', () => {
@@ -12,7 +13,12 @@ describe('PinnedGridService', () => {
       findUniqueOrThrow: jest.fn(),
       update: jest.fn(),
     },
-    pinnedNewsSlot: {
+    pinnedPlacement: {
+      deleteMany: jest.fn(),
+      create: jest.fn(),
+    },
+    pinnedNews: {
+      upsert: jest.fn(),
       deleteMany: jest.fn(),
     },
     news: {
@@ -23,9 +29,6 @@ describe('PinnedGridService', () => {
   const style = {
     imagePosition: 'top' as const,
     imageSizePercent: 50,
-    imageScale: 1,
-    imageOffsetX: 50,
-    imageOffsetY: 50,
     backgroundColor: '#f9f9f9',
     textColor: '#1e1e1e',
   };
@@ -40,35 +43,81 @@ describe('PinnedGridService', () => {
       prismaMock.pinnedGridLayout.findUniqueOrThrow.mockResolvedValue({
         columns: 3,
         rows: 12,
-        slots: [
+        placements: [
           {
-            newsId: 'news-1',
             colStart: 1,
             rowStart: 1,
             colSpan: 1,
             rowSpan: 1,
-            imagePosition: CardImagePosition.TOP,
-            imageSizePercent: 50,
-            imageScale: 1,
-            imageOffsetX: 50,
-            imageOffsetY: 50,
-            backgroundColor: '#f9f9f9',
-            textColor: '#1e1e1e',
-            coverImageUrl: null,
+            pinnedNews: {
+              newsId: 'news-1',
+              imagePosition: CardImagePosition.TOP,
+              imageSizePercent: 50,
+              backgroundColor: '#f9f9f9',
+              textColor: '#1e1e1e',
+              coverImageUrl: null,
+              news: { images: [] },
+            },
           },
         ],
       });
 
       const result = await service.getLayout(PinnedGridViewport.LARGE);
 
-      expect(prismaMock.pinnedGridLayout.findUniqueOrThrow).toHaveBeenCalledWith({
+      expect(
+        prismaMock.pinnedGridLayout.findUniqueOrThrow,
+      ).toHaveBeenCalledWith({
         where: { viewport: PinnedGridViewport.LARGE },
-        include: { slots: true },
+        include: PINNED_LAYOUT_INCLUDE,
       });
       expect(result.config).toEqual({ columns: 3, rows: 12 });
       expect(result.slots).toHaveLength(1);
       expect(result.slots[0].newsId).toBe('news-1');
       expect(result.slots[0].style.imagePosition).toBe('top');
+      expect(result.slots[0].focalPoint).toBeNull();
+    });
+
+    it('resolves the focal point from the news cover image', async () => {
+      prismaMock.pinnedGridLayout.findUniqueOrThrow.mockResolvedValue({
+        columns: 3,
+        rows: 12,
+        placements: [
+          {
+            colStart: 1,
+            rowStart: 1,
+            colSpan: 1,
+            rowSpan: 1,
+            pinnedNews: {
+              newsId: 'news-1',
+              imagePosition: CardImagePosition.TOP,
+              imageSizePercent: 50,
+              backgroundColor: '#f9f9f9',
+              textColor: '#1e1e1e',
+              coverImageUrl: '/uploads/cover.png',
+              news: {
+                images: [
+                  {
+                    url: '/uploads/other.png',
+                    order: 0,
+                    focalX: 10,
+                    focalY: 20,
+                  },
+                  {
+                    url: '/uploads/cover.png',
+                    order: 1,
+                    focalX: 30,
+                    focalY: 40,
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      });
+
+      const result = await service.getLayout(PinnedGridViewport.LARGE);
+
+      expect(result.slots[0].focalPoint).toEqual({ x: 30, y: 40 });
     });
 
     it('throws NotFoundException when the layout does not exist (P2025)', async () => {
@@ -79,9 +128,9 @@ describe('PinnedGridService', () => {
         }),
       );
 
-      await expect(
-        service.getLayout(PinnedGridViewport.SMALL),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getLayout(PinnedGridViewport.SMALL)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -114,9 +163,7 @@ describe('PinnedGridService', () => {
 
       const dto = {
         config: { columns: 3, rows: 12 },
-        slots: [
-          { ...baseDto.slots[0], colStart: 4, colSpan: 1 },
-        ],
+        slots: [{ ...baseDto.slots[0], colStart: 4, colSpan: 1 }],
       };
 
       await expect(
@@ -145,25 +192,33 @@ describe('PinnedGridService', () => {
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
 
-    it('replaces the layout inside a transaction on success', async () => {
+    it('replaces placements and upserts PinnedNews inside a transaction on success', async () => {
       prismaMock.news.findMany.mockResolvedValue([{ id: 'news-1' }]);
+      const txDeleteMany = jest.fn();
+      const txUpsert = jest.fn().mockResolvedValue({ id: 'pinned-news-1' });
+      const txPlacementCreate = jest.fn();
+      const txLayoutUpdate = jest.fn();
+      const txPinnedNewsDeleteMany = jest.fn();
       const txFindUniqueOrThrow = jest
         .fn()
-        .mockResolvedValue({ id: 'layout-1' });
-      const txDeleteMany = jest.fn();
-      const txUpdate = jest.fn().mockResolvedValue({
-        columns: 3,
-        rows: 12,
-        slots: [],
-      });
+        .mockResolvedValueOnce({ id: 'layout-1' })
+        .mockResolvedValueOnce({ columns: 3, rows: 12, placements: [] });
+
       prismaMock.$transaction.mockImplementation(
         (callback: (tx: unknown) => unknown) =>
           callback({
             pinnedGridLayout: {
               findUniqueOrThrow: txFindUniqueOrThrow,
-              update: txUpdate,
+              update: txLayoutUpdate,
             },
-            pinnedNewsSlot: { deleteMany: txDeleteMany },
+            pinnedPlacement: {
+              deleteMany: txDeleteMany,
+              create: txPlacementCreate,
+            },
+            pinnedNews: {
+              upsert: txUpsert,
+              deleteMany: txPinnedNewsDeleteMany,
+            },
           }),
       );
 
@@ -175,32 +230,40 @@ describe('PinnedGridService', () => {
       expect(txDeleteMany).toHaveBeenCalledWith({
         where: { layoutId: 'layout-1' },
       });
-      expect(txUpdate).toHaveBeenCalledWith({
-        where: { viewport: PinnedGridViewport.LARGE },
-        data: {
-          columns: 3,
-          rows: 12,
-          slots: {
-            create: [
-              {
-                newsId: 'news-1',
-                colStart: 1,
-                rowStart: 1,
-                colSpan: 1,
-                rowSpan: 1,
-                imagePosition: CardImagePosition.TOP,
-                imageSizePercent: style.imageSizePercent,
-                imageScale: style.imageScale,
-                imageOffsetX: style.imageOffsetX,
-                imageOffsetY: style.imageOffsetY,
-                backgroundColor: style.backgroundColor,
-                textColor: style.textColor,
-                coverImageUrl: null,
-              },
-            ],
-          },
+      expect(txUpsert).toHaveBeenCalledWith({
+        where: { newsId: 'news-1' },
+        create: {
+          newsId: 'news-1',
+          coverImageUrl: null,
+          imagePosition: CardImagePosition.TOP,
+          imageSizePercent: style.imageSizePercent,
+          backgroundColor: style.backgroundColor,
+          textColor: style.textColor,
         },
-        include: { slots: true },
+        update: {
+          coverImageUrl: null,
+          imagePosition: CardImagePosition.TOP,
+          imageSizePercent: style.imageSizePercent,
+          backgroundColor: style.backgroundColor,
+          textColor: style.textColor,
+        },
+      });
+      expect(txPlacementCreate).toHaveBeenCalledWith({
+        data: {
+          pinnedNewsId: 'pinned-news-1',
+          layoutId: 'layout-1',
+          colStart: 1,
+          rowStart: 1,
+          colSpan: 1,
+          rowSpan: 1,
+        },
+      });
+      expect(txLayoutUpdate).toHaveBeenCalledWith({
+        where: { viewport: PinnedGridViewport.LARGE },
+        data: { columns: 3, rows: 12 },
+      });
+      expect(txPinnedNewsDeleteMany).toHaveBeenCalledWith({
+        where: { placements: { none: {} } },
       });
       expect(result.config).toEqual({ columns: 3, rows: 12 });
     });
@@ -216,14 +279,28 @@ describe('PinnedGridService', () => {
         .mockImplementationOnce((callback: (tx: unknown) => unknown) =>
           callback({
             pinnedGridLayout: {
-              findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'layout-1' }),
-              update: jest.fn().mockResolvedValue({ columns: 3, rows: 12, slots: [] }),
+              findUniqueOrThrow: jest
+                .fn()
+                .mockResolvedValueOnce({ id: 'layout-1' })
+                .mockResolvedValueOnce({
+                  columns: 3,
+                  rows: 12,
+                  placements: [],
+                }),
+              update: jest.fn(),
             },
-            pinnedNewsSlot: { deleteMany: jest.fn() },
+            pinnedPlacement: { deleteMany: jest.fn(), create: jest.fn() },
+            pinnedNews: {
+              upsert: jest.fn().mockResolvedValue({ id: 'pinned-news-1' }),
+              deleteMany: jest.fn(),
+            },
           }),
         );
 
-      const result = await service.updateLayout(PinnedGridViewport.LARGE, baseDto);
+      const result = await service.updateLayout(
+        PinnedGridViewport.LARGE,
+        baseDto,
+      );
 
       expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
       expect(result.config).toEqual({ columns: 3, rows: 12 });

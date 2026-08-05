@@ -6,7 +6,9 @@ import {
 import { Prisma } from '../../generated/prisma/client';
 import { CreateNewsDto } from '../../news/dto/create-news.dto';
 import { NewsDto } from '../../news/dto/news.dto';
+import { NewsImageDto } from '../../news/dto/news-image.dto';
 import { UpdateNewsDto } from '../../news/dto/update-news.dto';
+import { UpdateNewsImageFocalPointDto } from '../../news/dto/update-news-image-focal-point.dto';
 import { NEWS_INCLUDE, toNewsDto } from '../../news/news.mapper';
 import {
   NewsImageDownloadService,
@@ -117,6 +119,22 @@ export class AdminNewsService {
     });
 
     return toNewsDto(news);
+  }
+
+  async updateImageFocalPoint(
+    id: string,
+    dto: UpdateNewsImageFocalPointDto,
+  ): Promise<NewsImageDto> {
+    const image = await this.prisma.newsImage.findUnique({ where: { id } });
+
+    if (!image) {
+      throw new NotFoundException('Изображение не найдено');
+    }
+
+    return this.prisma.newsImage.update({
+      where: { id },
+      data: { focalX: dto.focalX, focalY: dto.focalY },
+    });
   }
 
   private async assertExists(id: string): Promise<void> {

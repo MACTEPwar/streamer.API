@@ -9,4 +9,10 @@ export class NewsImageDto {
 
   @ApiProperty({ example: 0 })
   order: number;
+
+  @ApiProperty({ example: null, nullable: true })
+  focalX: number | null;
+
+  @ApiProperty({ example: null, nullable: true })
+  focalY: number | null;
 }

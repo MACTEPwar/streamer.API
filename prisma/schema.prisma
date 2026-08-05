@@ -137,11 +137,11 @@ model News {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  images      NewsImage[]
-  tags        NewsTag[]
-  likes       NewsLike[]
-  views       NewsView[]
-  pinnedSlots PinnedNewsSlot[]
+  images     NewsImage[]
+  tags       NewsTag[]
+  likes      NewsLike[]
+  views      NewsView[]
+  pinnedNews PinnedNews?
 }
 
 model NewsImage {
@@ -149,6 +149,12 @@ model NewsImage {
   newsId    String
   url       String
   order     Int      @default(0)
+  // Точка фокуса картинки в процентах (0..100), для object-position на фронте.
+  // Nullable намеренно: null = центр (50/50) по умолчанию, фокус задаётся
+  // только там, где нужно (сейчас — обложки закреплённых новостей), не для
+  // всех картинок подряд (streamer.API#73).
+  focalX    Int?
+  focalY    Int?
   createdAt DateTime @default(now())
 
   news News @relation(fields: [newsId], references: [id], onDelete: Cascade)
@@ -189,9 +195,11 @@ model NewsView {
   @@unique([userId, newsId])
 }
 
+// SMALL — телефон и планшет книжкой; LARGE — планшет альбомом, ноутбук,
+// десктоп. Какая раскладка применяется на каком экране (в т.ч. ориентация)
+// решает фронт, бэк просто хранит две раскладки (streamer.API#73).
 enum PinnedGridViewport {
   SMALL
-  MIDDLE
   LARGE
 }
 
@@ -209,30 +217,39 @@ model PinnedGridLayout {
   rows      Int
   updatedAt DateTime           @updatedAt
 
-  slots PinnedNewsSlot[]
+  placements PinnedPlacement[]
 }
 
-model PinnedNewsSlot {
-  id       String @id @default(cuid())
-  layoutId String
-  newsId   String
+// ЧТО закреплено + КАК выглядит, один раз на новость — независимо от
+// раскладки (streamer.API#73, заменяет прежний PinnedNewsSlot, который
+// дублировал стиль на каждую раскладку и расходился между ними).
+model PinnedNews {
+  id               String            @id @default(cuid())
+  newsId           String            @unique
+  coverImageUrl    String?
+  imagePosition    CardImagePosition @default(TOP)
+  imageSizePercent Int               @default(50)
+  backgroundColor  String            @default("#f9f9f9")
+  textColor        String            @default("#1e1e1e")
+  createdAt        DateTime          @default(now())
+
+  news       News              @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  placements PinnedPlacement[]
+}
+
+// ГДЕ лежит закреплённая новость — своё на каждую раскладку.
+model PinnedPlacement {
+  id           String @id @default(cuid())
+  pinnedNewsId String
+  layoutId     String
 
   colStart Int
   rowStart Int
   colSpan  Int
   rowSpan  Int
 
-  imagePosition    CardImagePosition @default(TOP)
-  imageSizePercent Int               @default(50)
-  imageScale       Float             @default(1)
-  imageOffsetX     Int               @default(50)
-  imageOffsetY     Int               @default(50)
-  backgroundColor  String            @default("#f9f9f9")
-  textColor        String            @default("#1e1e1e")
-  coverImageUrl    String?
+  pinnedNews PinnedNews       @relation(fields: [pinnedNewsId], references: [id], onDelete: Cascade)
+  layout     PinnedGridLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-
-  layout PinnedGridLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
-  news   News             @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  @@unique([pinnedNewsId, layoutId])
 }

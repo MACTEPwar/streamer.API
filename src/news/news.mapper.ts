@@ -34,7 +34,13 @@ export function toNewsDto(
     images: news.images
       .slice()
       .sort((a, b) => a.order - b.order)
-      .map((image) => ({ id: image.id, url: image.url, order: image.order })),
+      .map((image) => ({
+        id: image.id,
+        url: image.url,
+        order: image.order,
+        focalX: image.focalX,
+        focalY: image.focalY,
+      })),
     tags: news.tags.map((tag) => ({
       id: tag.id,
       name: tag.name,

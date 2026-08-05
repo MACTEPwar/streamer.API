@@ -17,20 +17,19 @@ export class PinnedNewsSlotStyleDto {
   @ApiProperty({ example: 50 })
   imageSizePercent: number;
 
-  @ApiProperty({ example: 1 })
-  imageScale: number;
-
-  @ApiProperty({ example: 50 })
-  imageOffsetX: number;
-
-  @ApiProperty({ example: 50 })
-  imageOffsetY: number;
-
   @ApiProperty({ example: '#f9f9f9' })
   backgroundColor: string;
 
   @ApiProperty({ example: '#1e1e1e' })
   textColor: string;
+}
+
+export class PinnedGridFocalPointDto {
+  @ApiProperty({ example: 50 })
+  x: number;
+
+  @ApiProperty({ example: 50 })
+  y: number;
 }
 
 export class PinnedNewsSlotDto {
@@ -54,6 +53,17 @@ export class PinnedNewsSlotDto {
 
   @ApiProperty({ example: null, nullable: true })
   coverImageUrl: string | null;
+
+  @ApiProperty({
+    type: PinnedGridFocalPointDto,
+    nullable: true,
+    example: null,
+    description:
+      'Точка фокуса картинки, применяемой в этом слоте (обложка новости, либо ' +
+      'coverImageUrl если задан); null — картинки нет или у неё нет заданного ' +
+      'фокуса (тогда фронт использует центр 50/50)',
+  })
+  focalPoint: PinnedGridFocalPointDto | null;
 }
 
 export class PinnedGridLayoutDto {
