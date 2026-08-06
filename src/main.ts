@@ -38,8 +38,15 @@ async function bootstrap() {
   // credentials: true is required for the cookie-based JWT auth flow (#16) —
   // browsers reject wildcard origin with credentials, CORS_ORIGIN is always
   // a specific value, never '*'.
+  // Вне production origin отражается обратно (`true`), а не сверяется с
+  // CORS_ORIGIN: в разработке сайт открывают и на `localhost:4200`, и по
+  // LAN-адресу с телефона/планшета (`http://192.168.x.x:4200`) для проверки
+  // адаптива, и фиксированное значение ломало бы один из этих случаев.
+  // `credentials: true` требует конкретный origin, не '*' — отражение даёт
+  // именно его. В production остаётся строгая сверка с CORS_ORIGIN.
+  const isProduction = configService.get<string>('NODE_ENV') === 'production';
   app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN'),
+    origin: isProduction ? configService.get<string>('CORS_ORIGIN') : true,
     credentials: true,
   });
 
