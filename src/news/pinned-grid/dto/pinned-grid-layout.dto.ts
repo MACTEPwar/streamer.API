@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { NewsCoverDto } from '../../dto/news.dto';
 import { WIRE_CARD_IMAGE_POSITIONS } from '../pinned-grid-image-position.util';
 import type { WireCardImagePosition } from '../pinned-grid-image-position.util';
 
@@ -24,14 +25,6 @@ export class PinnedNewsSlotStyleDto {
   textColor: string;
 }
 
-export class PinnedGridFocalPointDto {
-  @ApiProperty({ example: 50 })
-  x: number;
-
-  @ApiProperty({ example: 50 })
-  y: number;
-}
-
 export class PinnedNewsSlotDto {
   @ApiProperty({ example: 'cly1a2b3c0000abcd1234efgh' })
   newsId: string;
@@ -51,19 +44,13 @@ export class PinnedNewsSlotDto {
   @ApiProperty({ type: PinnedNewsSlotStyleDto })
   style: PinnedNewsSlotStyleDto;
 
-  @ApiProperty({ example: null, nullable: true })
-  coverImageUrl: string | null;
-
   @ApiProperty({
-    type: PinnedGridFocalPointDto,
-    nullable: true,
-    example: null,
+    type: NewsCoverDto,
     description:
-      'Точка фокуса картинки, применяемой в этом слоте (обложка новости, либо ' +
-      'coverImageUrl если задан); null — картинки нет или у неё нет заданного ' +
-      'фокуса (тогда фронт использует центр 50/50)',
+      'Обложка новости — та же, что в ленте: карточка витрины не показывает ' +
+      'свою картинку и не подменяет отсутствующую обложку первым изображением',
   })
-  focalPoint: PinnedGridFocalPointDto | null;
+  cover: NewsCoverDto;
 }
 
 export class PinnedGridLayoutDto {

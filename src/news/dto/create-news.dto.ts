@@ -1,14 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
 import { IsImageSource } from './is-image-source.decorator';
+import { NewsCoverInputDto } from './news-cover-input.dto';
 
 export class CreateNewsDto {
   @ApiProperty({ example: 'Открыт турнир по CS2', maxLength: 255 })
@@ -46,10 +48,13 @@ export class CreateNewsDto {
   tagIds: string[];
 
   @ApiPropertyOptional({
-    example: false,
-    description: 'Новость осознанно опубликована без фото',
+    type: NewsCoverInputDto,
+    description:
+      'Состояние обложки. Если не передано при создании — новость остаётся ' +
+      'без обложки: первое изображение её не подменяет',
   })
   @IsOptional()
-  @IsBoolean()
-  hasNoImage?: boolean;
+  @ValidateNested()
+  @Type(() => NewsCoverInputDto)
+  cover?: NewsCoverInputDto;
 }
