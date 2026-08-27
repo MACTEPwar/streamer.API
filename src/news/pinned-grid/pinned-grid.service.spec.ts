@@ -24,6 +24,12 @@ describe('PinnedGridService', () => {
     news: {
       findMany: jest.fn(),
     },
+    newsLike: {
+      findMany: jest.fn(),
+    },
+    newsView: {
+      findMany: jest.fn(),
+    },
   };
 
   const style = {
@@ -56,11 +62,18 @@ describe('PinnedGridService', () => {
               backgroundColor: '#f9f9f9',
               textColor: '#1e1e1e',
               news: {
+                id: 'news-1',
+                title: 'Открыт турнир по CS2',
+                description: 'Подробное описание новости',
+                publishedAt: new Date('2026-08-01'),
+                viewCount: 320,
                 coverType: NewsCoverType.NONE,
                 coverUrl: null,
                 coverFocalX: null,
                 coverFocalY: null,
                 images: [],
+                tags: [],
+                _count: { likes: 42 },
               },
             },
           },
@@ -103,6 +116,13 @@ describe('PinnedGridService', () => {
               backgroundColor: '#f9f9f9',
               textColor: '#1e1e1e',
               news: {
+                id: 'news-1',
+                title: 'Открыт турнир по CS2',
+                description: 'Подробное описание новости',
+                publishedAt: new Date('2026-08-01'),
+                viewCount: 320,
+                tags: [],
+                _count: { likes: 42 },
                 coverType: NewsCoverType.IMAGE,
                 coverUrl: '/uploads/cover.png',
                 coverFocalX: null,
@@ -147,6 +167,102 @@ describe('PinnedGridService', () => {
       await expect(service.getLayout(PinnedGridViewport.SMALL)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    describe('признаки собственной реакции (streamer.API#76)', () => {
+      function layoutWithSlots(newsIds: string[]) {
+        return {
+          columns: 3,
+          rows: 12,
+          placements: newsIds.map((newsId) => ({
+            colStart: 1,
+            rowStart: 1,
+            colSpan: 1,
+            rowSpan: 1,
+            pinnedNews: {
+              newsId,
+              imagePosition: CardImagePosition.TOP,
+              imageSizePercent: 50,
+              backgroundColor: '#f9f9f9',
+              textColor: '#1e1e1e',
+              news: {
+                id: newsId,
+                title: `Новость ${newsId}`,
+                description: 'Описание',
+                publishedAt: new Date('2026-08-01'),
+                viewCount: 10,
+                coverType: NewsCoverType.NONE,
+                coverUrl: null,
+                coverFocalX: null,
+                coverFocalY: null,
+                images: [],
+                tags: [],
+                _count: { likes: 5 },
+              },
+            },
+          })),
+        };
+      }
+
+      it('does not ask about reactions at all without a session', async () => {
+        prismaMock.pinnedGridLayout.findUniqueOrThrow.mockResolvedValue(
+          layoutWithSlots(['news-1']),
+        );
+
+        const result = await service.getLayout(PinnedGridViewport.LARGE);
+
+        expect(prismaMock.newsLike.findMany).not.toHaveBeenCalled();
+        expect(prismaMock.newsView.findMany).not.toHaveBeenCalled();
+        expect(result.slots[0].news.likedByCurrentUser).toBeNull();
+        expect(result.slots[0].news.viewedByCurrentUser).toBeNull();
+      });
+
+      it('asks for the reader’s own reactions in one batch per kind, not per slot', async () => {
+        prismaMock.pinnedGridLayout.findUniqueOrThrow.mockResolvedValue(
+          layoutWithSlots(['news-1', 'news-2', 'news-3']),
+        );
+        prismaMock.newsLike.findMany.mockResolvedValue([{ newsId: 'news-2' }]);
+        prismaMock.newsView.findMany.mockResolvedValue([{ newsId: 'news-3' }]);
+
+        const result = await service.getLayout(PinnedGridViewport.LARGE, 'u1');
+
+        // Три слота — по одному запросу на признак, а не по одному на слот
+        expect(prismaMock.newsLike.findMany).toHaveBeenCalledTimes(1);
+        expect(prismaMock.newsView.findMany).toHaveBeenCalledTimes(1);
+        expect(prismaMock.newsLike.findMany).toHaveBeenCalledWith({
+          where: {
+            userId: 'u1',
+            newsId: { in: ['news-1', 'news-2', 'news-3'] },
+          },
+          select: { newsId: true },
+        });
+        expect(prismaMock.newsView.findMany).toHaveBeenCalledWith({
+          where: {
+            userId: 'u1',
+            newsId: { in: ['news-1', 'news-2', 'news-3'] },
+          },
+          select: { newsId: true },
+        });
+
+        expect(
+          result.slots.map((slot) => slot.news.likedByCurrentUser),
+        ).toEqual([false, true, false]);
+        expect(
+          result.slots.map((slot) => slot.news.viewedByCurrentUser),
+        ).toEqual([false, false, true]);
+      });
+
+      it('skips the reaction queries when the layout has no slots', async () => {
+        prismaMock.pinnedGridLayout.findUniqueOrThrow.mockResolvedValue(
+          layoutWithSlots([]),
+        );
+
+        const result = await service.getLayout(PinnedGridViewport.LARGE, 'u1');
+
+        expect(prismaMock.newsLike.findMany).not.toHaveBeenCalled();
+        expect(prismaMock.newsView.findMany).not.toHaveBeenCalled();
+        expect(result.slots).toEqual([]);
+      });
     });
   });
 
