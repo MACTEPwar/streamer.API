@@ -1,5 +1,6 @@
 import { Prisma } from '../generated/prisma/client';
 import { NewsDto } from './dto/news.dto';
+import { resolveNewsCover } from './news-cover';
 
 export const NEWS_INCLUDE = {
   images: true,
@@ -23,7 +24,7 @@ export function toNewsDto(
     description: news.description,
     publishedAt: news.publishedAt,
     viewCount: news.viewCount,
-    hasNoImage: news.hasNoImage,
+    cover: resolveNewsCover(news),
     likeCount: news._count.likes,
     likedByCurrentUser: currentUserId
       ? news.likes.some((like) => like.userId === currentUserId)

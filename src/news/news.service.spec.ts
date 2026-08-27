@@ -1,5 +1,6 @@
 import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
+import { NewsCoverType } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { NewsQueryDto } from './dto/news-query.dto';
 import { NewsService } from './news.service';
@@ -31,7 +32,10 @@ describe('NewsService', () => {
     description: 'Description',
     publishedAt: new Date('2026-01-01'),
     viewCount: 0,
-    hasNoImage: false,
+    coverType: NewsCoverType.NONE,
+    coverUrl: null,
+    coverFocalX: null,
+    coverFocalY: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     images: [

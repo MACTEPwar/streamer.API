@@ -75,7 +75,7 @@ describe('CreateNewsDto', () => {
     expect(errors.some((error) => error.property === 'tagIds')).toBe(true);
   });
 
-  it('passes validation without optional hasNoImage', async () => {
+  it('passes validation without a cover', async () => {
     const dto = plainToInstance(CreateNewsDto, valid);
 
     const errors = await validate(dto);
@@ -83,11 +83,11 @@ describe('CreateNewsDto', () => {
     expect(errors).toHaveLength(0);
   });
 
-  it('passes validation with hasNoImage true and an empty imageUrls array', async () => {
+  it('passes validation for a news deliberately without a cover', async () => {
     const dto = plainToInstance(CreateNewsDto, {
       ...valid,
       imageUrls: [],
-      hasNoImage: true,
+      cover: { type: 'none' },
     });
 
     const errors = await validate(dto);
@@ -95,14 +95,77 @@ describe('CreateNewsDto', () => {
     expect(errors).toHaveLength(0);
   });
 
-  it('fails validation when hasNoImage is not a boolean', async () => {
+  it('passes validation for an own cover with a focal point', async () => {
     const dto = plainToInstance(CreateNewsDto, {
       ...valid,
-      hasNoImage: 'yes',
+      cover: {
+        type: 'custom',
+        url: 'https://example.com/cover.png',
+        focalPoint: { x: 70, y: 80 },
+      },
     });
 
     const errors = await validate(dto);
 
-    expect(errors.some((error) => error.property === 'hasNoImage')).toBe(true);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('fails validation with an unknown cover state', async () => {
+    const dto = plainToInstance(CreateNewsDto, {
+      ...valid,
+      cover: { type: 'first-image', url: '/uploads/abc.jpg' },
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === 'cover')).toBe(true);
+  });
+
+  it('fails validation when a chosen cover comes without an url', async () => {
+    const dto = plainToInstance(CreateNewsDto, {
+      ...valid,
+      cover: { type: 'image' },
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === 'cover')).toBe(true);
+  });
+
+  it('fails validation when an url is given for a news without a cover', async () => {
+    const dto = plainToInstance(CreateNewsDto, {
+      ...valid,
+      cover: { type: 'none', url: '/uploads/abc.jpg' },
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === 'cover')).toBe(true);
+  });
+
+  it('fails validation when the cover url is neither an /uploads/* path nor an http(s) URL', async () => {
+    const dto = plainToInstance(CreateNewsDto, {
+      ...valid,
+      cover: { type: 'custom', url: 'file:///etc/passwd' },
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === 'cover')).toBe(true);
+  });
+
+  it('fails validation when the cover focal point is out of range', async () => {
+    const dto = plainToInstance(CreateNewsDto, {
+      ...valid,
+      cover: {
+        type: 'custom',
+        url: '/uploads/abc.jpg',
+        focalPoint: { x: 140, y: 50 },
+      },
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === 'cover')).toBe(true);
   });
 });

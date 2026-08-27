@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma, PinnedGridViewport } from '../../generated/prisma/client';
-import { CardImagePosition } from '../../generated/prisma/enums';
+import { CardImagePosition, NewsCoverType } from '../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PINNED_LAYOUT_INCLUDE } from './pinned-grid.mapper';
 import { PinnedGridService } from './pinned-grid.service';
@@ -55,8 +55,13 @@ describe('PinnedGridService', () => {
               imageSizePercent: 50,
               backgroundColor: '#f9f9f9',
               textColor: '#1e1e1e',
-              coverImageUrl: null,
-              news: { images: [] },
+              news: {
+                coverType: NewsCoverType.NONE,
+                coverUrl: null,
+                coverFocalX: null,
+                coverFocalY: null,
+                images: [],
+              },
             },
           },
         ],
@@ -74,10 +79,14 @@ describe('PinnedGridService', () => {
       expect(result.slots).toHaveLength(1);
       expect(result.slots[0].newsId).toBe('news-1');
       expect(result.slots[0].style.imagePosition).toBe('top');
-      expect(result.slots[0].focalPoint).toBeNull();
+      expect(result.slots[0].cover).toEqual({
+        type: 'none',
+        url: null,
+        focalPoint: null,
+      });
     });
 
-    it('resolves the focal point from the news cover image', async () => {
+    it('carries the cover of the news through to the slot', async () => {
       prismaMock.pinnedGridLayout.findUniqueOrThrow.mockResolvedValue({
         columns: 3,
         rows: 12,
@@ -93,8 +102,11 @@ describe('PinnedGridService', () => {
               imageSizePercent: 50,
               backgroundColor: '#f9f9f9',
               textColor: '#1e1e1e',
-              coverImageUrl: '/uploads/cover.png',
               news: {
+                coverType: NewsCoverType.IMAGE,
+                coverUrl: '/uploads/cover.png',
+                coverFocalX: null,
+                coverFocalY: null,
                 images: [
                   {
                     url: '/uploads/other.png',
@@ -117,7 +129,11 @@ describe('PinnedGridService', () => {
 
       const result = await service.getLayout(PinnedGridViewport.LARGE);
 
-      expect(result.slots[0].focalPoint).toEqual({ x: 30, y: 40 });
+      expect(result.slots[0].cover).toEqual({
+        type: 'image',
+        url: '/uploads/cover.png',
+        focalPoint: { x: 30, y: 40 },
+      });
     });
 
     it('throws NotFoundException when the layout does not exist (P2025)', async () => {
@@ -234,14 +250,12 @@ describe('PinnedGridService', () => {
         where: { newsId: 'news-1' },
         create: {
           newsId: 'news-1',
-          coverImageUrl: null,
           imagePosition: CardImagePosition.TOP,
           imageSizePercent: style.imageSizePercent,
           backgroundColor: style.backgroundColor,
           textColor: style.textColor,
         },
         update: {
-          coverImageUrl: null,
           imagePosition: CardImagePosition.TOP,
           imageSizePercent: style.imageSizePercent,
           backgroundColor: style.backgroundColor,

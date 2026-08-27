@@ -59,7 +59,7 @@ describe('NewsQueryDto', () => {
     expect(await validate(dto)).toHaveLength(0);
   });
 
-  it('accepts tagIds as a single value and as a comma-separated list', async () => {
+  it('accepts tagIds as a single value and as a comma-separated list', () => {
     expect(parseQuery({ tagIds: 'tag-1' }).tagIds).toEqual(['tag-1']);
     expect(parseQuery({ tagIds: 'tag-1,tag-2' }).tagIds).toEqual([
       'tag-1',

@@ -83,14 +83,12 @@ export class PinnedGridService {
               where: { newsId: slot.newsId },
               create: {
                 newsId: slot.newsId,
-                coverImageUrl: slot.coverImageUrl ?? null,
                 imagePosition: toPrismaImagePosition(slot.style.imagePosition),
                 imageSizePercent: slot.style.imageSizePercent,
                 backgroundColor: slot.style.backgroundColor,
                 textColor: slot.style.textColor,
               },
               update: {
-                coverImageUrl: slot.coverImageUrl ?? null,
                 imagePosition: toPrismaImagePosition(slot.style.imagePosition),
                 imageSizePercent: slot.style.imageSizePercent,
                 backgroundColor: slot.style.backgroundColor,

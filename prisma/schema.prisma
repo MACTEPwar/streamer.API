@@ -127,15 +127,32 @@ model Schedule {
   time       String?
 }
 
+// Состояние обложки новости: явное, а не выводимое из наличия картинок
+// (streamer.API#80, ОБЛ-Б-01). NONE — осознанно без обложки; IMAGE — одна из
+// картинок набора (адресуется по url: набор пересоздаётся при каждой правке,
+// id не переживают её); CUSTOM — своя, в набор не входит.
+enum NewsCoverType {
+  NONE
+  IMAGE
+  CUSTOM
+}
+
 model News {
   id          String   @id @default(cuid())
   title       String
   description String   @db.Text
   publishedAt DateTime @default(now())
   viewCount   Int      @default(0)
-  hasNoImage  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Обложка новости (streamer.API#80). coverUrl всегда локальный /uploads/*:
+  // внешняя ссылка скачивается при приёме и дальше не хранится (ОБЛ-Б-02).
+  // Фокус здесь — только для CUSTOM; у IMAGE он живёт на самой NewsImage.
+  coverType   NewsCoverType @default(NONE)
+  coverUrl    String?
+  coverFocalX Int?
+  coverFocalY Int?
 
   images     NewsImage[]
   tags       NewsTag[]
@@ -231,7 +248,6 @@ model PinnedGridLayout {
 model PinnedNews {
   id               String            @id @default(cuid())
   newsId           String            @unique
-  coverImageUrl    String?
   imagePosition    CardImagePosition @default(TOP)
   imageSizePercent Int               @default(50)
   backgroundColor  String            @default("#f9f9f9")
