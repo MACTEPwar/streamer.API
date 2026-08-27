@@ -8,7 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
@@ -25,18 +25,19 @@ import { NewsService } from './news.service';
 export class NewsController {
   constructor(private readonly newsService: NewsService) {}
 
+  /**
+   * Условия отбора описаны на самих полях `NewsQueryDto` — второго их
+   * описания через `@ApiQuery` здесь нет намеренно: две копии контракта
+   * расходятся при первой же правке.
+   */
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
   @ApiPaginatedResponse(NewsDto)
-  @ApiQuery({
-    name: 'search',
-    required: false,
-    description: 'Substring filter (case-insensitive) — matches News.title',
-  })
-  @ApiQuery({
-    name: 'tagId',
-    required: false,
-    description: 'Filter by a specific NewsTag id',
+  @ApiResponse({
+    status: 401,
+    type: ErrorResponseDto,
+    description:
+      'likedByCurrentUser/viewedByCurrentUser переданы без сессии — отбор по своим лайкам и просмотрам требует авторизации',
   })
   findAll(@Query() query: NewsQueryDto, @Req() req: Request) {
     return this.newsService.findAll(query, req.user?.id);
