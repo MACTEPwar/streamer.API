@@ -2,6 +2,28 @@ import { registerDecorator, ValidationOptions } from 'class-validator';
 import { UPLOADS_URL_PREFIX } from '../../upload/constants/upload.constant';
 
 /**
+ * Проверка значения без привязки к конкретному полю — переиспользуется и
+ * декоратором ниже, и `IsNewsCoverUrl` (обложка принимается по тем же
+ * правилам, что остальные изображения, `ОБЛ-Б-02`).
+ */
+export function isImageSourceValue(value: unknown): boolean {
+  if (typeof value !== 'string' || value.length === 0) {
+    return false;
+  }
+
+  if (value.startsWith(`${UPLOADS_URL_PREFIX}/`)) {
+    return true;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Validates that a value is either an already-uploaded local `/uploads/*`
  * path (from `POST /upload`) or an absolute http(s) URL — the two ways the
  * frontend can supply a news image (see streamer.API#65). `@IsUrl()` alone
@@ -16,20 +38,7 @@ export function IsImageSource(validationOptions?: ValidationOptions) {
       options: validationOptions,
       validator: {
         validate(value: unknown): boolean {
-          if (typeof value !== 'string' || value.length === 0) {
-            return false;
-          }
-
-          if (value.startsWith(`${UPLOADS_URL_PREFIX}/`)) {
-            return true;
-          }
-
-          try {
-            const url = new URL(value);
-            return url.protocol === 'http:' || url.protocol === 'https:';
-          } catch {
-            return false;
-          }
+          return isImageSourceValue(value);
         },
         defaultMessage(): string {
           return 'each value in imageUrls must be an existing /uploads/* path or a valid http(s) URL';

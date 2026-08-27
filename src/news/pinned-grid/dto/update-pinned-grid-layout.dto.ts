@@ -5,7 +5,6 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
-  IsOptional,
   IsString,
   Max,
   Min,
@@ -76,11 +75,6 @@ export class UpdatePinnedNewsSlotDto {
   @ValidateNested()
   @Type(() => UpdatePinnedNewsSlotStyleDto)
   style: UpdatePinnedNewsSlotStyleDto;
-
-  @ApiProperty({ example: null, nullable: true, required: false })
-  @IsOptional()
-  @IsString()
-  coverImageUrl?: string;
 }
 
 export class UpdatePinnedGridLayoutDto {

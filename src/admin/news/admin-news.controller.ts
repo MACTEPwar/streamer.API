@@ -63,6 +63,19 @@ export class AdminNewsController {
     return this.adminNewsService.remove(id);
   }
 
+  @Patch(':id/cover/focal-point')
+  @ApiOkResponse({ type: NewsDto })
+  @ApiResponse({ status: 400, type: ErrorResponseDto })
+  @ApiResponse({ status: 401, type: ErrorResponseDto })
+  @ApiResponse({ status: 403, type: ErrorResponseDto })
+  @ApiResponse({ status: 404, type: ErrorResponseDto })
+  updateCoverFocalPoint(
+    @Param('id') id: string,
+    @Body() dto: UpdateNewsImageFocalPointDto,
+  ): Promise<NewsDto> {
+    return this.adminNewsService.updateCoverFocalPoint(id, dto);
+  }
+
   @Patch('images/:id/focal-point')
   @ApiOkResponse({ type: NewsImageDto })
   @ApiResponse({ status: 400, type: ErrorResponseDto })

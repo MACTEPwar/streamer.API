@@ -31,6 +31,7 @@ describe('AdminNewsController (guards)', () => {
     create: jest.fn().mockResolvedValue({ id: 'news-1' }),
     update: jest.fn().mockResolvedValue({ id: 'news-1' }),
     remove: jest.fn().mockResolvedValue({ id: 'news-1' }),
+    updateCoverFocalPoint: jest.fn().mockResolvedValue({ id: 'news-1' }),
   };
 
   const authService = {
@@ -171,6 +172,33 @@ describe('AdminNewsController (guards)', () => {
       .expect(404);
 
     expect((res.body as ErrorResponseDto).statusCode).toBe(404);
+  });
+
+  it('rejects the cover focal point without an auth cookie with 401', async () => {
+    const res = await request(app.getHttpServer())
+      .patch('/admin/news/news-1/cover/focal-point')
+      .send({ focalX: 70, focalY: 80 })
+      .expect(401);
+
+    expect((res.body as ErrorResponseDto).statusCode).toBe(401);
+  });
+
+  it('passes the cover focal point of an ADMIN user to the service', async () => {
+    authService.verifyToken.mockResolvedValue({
+      sub: 'admin1',
+      role: Role.ADMIN,
+    });
+
+    await request(app.getHttpServer())
+      .patch('/admin/news/news-1/cover/focal-point')
+      .set('Cookie', 'access_token=fake')
+      .send({ focalX: 70, focalY: 80 })
+      .expect(200);
+
+    expect(adminNewsService.updateCoverFocalPoint).toHaveBeenCalledWith(
+      'news-1',
+      { focalX: 70, focalY: 80 },
+    );
   });
 
   it('rejects DELETE without an auth cookie with 401', async () => {
