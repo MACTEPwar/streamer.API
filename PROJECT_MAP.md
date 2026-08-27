@@ -7,18 +7,22 @@
 ## Модули
 
 ### PrismaModule
+
 - Путь: `src/prisma/`
 - Назначение: глобальный модуль подключения к MySQL через Prisma (driver adapter `@prisma/adapter-mariadb`), без доменной схемы
 
 ### ConfigModule (`@nestjs/config`, isGlobal)
+
 - Путь: подключение в `src/app.module.ts`, схема валидации `src/config/env.validation.ts`
 - Назначение: загрузка `.env` + валидация обязательных переменных окружения при старте (Joi)
 
 ### HealthModule
+
 - Путь: `src/health/`
 - Назначение: `GET /health` — liveness-check, без проверки БД (заметка на будущее)
 
 ### AuthModule
+
 - Путь: `src/auth/`
 - Назначение: общая JWT/cookie сессионная инфраструктура + справочник методов входа (`AuthMethod`, #63 — множественный вход в один аккаунт: `LOCAL`/`GOOGLE`, можно иметь оба одновременно). Только access-токен (без refresh), без RBAC/ролевой логики (заложена только в payload).
 - Компоненты:
@@ -39,6 +43,7 @@
 - `cookie-parser` подключён глобально в `src/main.ts` (`req.cookies`)
 
 #### AuthMethodsController/AuthMethodsService (`src/auth/methods/`, #63)
+
 - Назначение: управление собственными методами входа текущего пользователя (подключение/отключение `LOCAL`/`GOOGLE`, смена локального пароля). Зарегистрированы прямо в `AuthModule` (не отдельный `@Module`), по аналогии с тем, как `GameAccountController`/`SocialLinkController` зарегистрированы в `ProfileModule`
 - Все четыре эндпоинта — `@Controller('auth/methods')`, защищены `JwtAuthGuard`, оперируют `req.user.id`
 - `GET /auth/methods` — `AuthMethodsService.findAll(userId)`: `{ type, identifier }[]` (без `passwordHash`)
@@ -49,6 +54,7 @@
 - `AuthMethodDto` (`dto/auth-method.dto.ts`) — Swagger-DTO ответа `GET /auth/methods`: `{ type, identifier }`
 
 ### AdminModule
+
 - Путь: `src/admin/`
 - Назначение: панель управления — CRUD пользователей для администратора (#59). Вложенная структура `users/` (по образцу `game-account/`/`social-link/` внутри `ProfileModule`), т.к. в дальнейшем возможны другие admin-разделы.
 - Компоненты:
@@ -65,6 +71,7 @@
 - `imports: [AuthModule, NewsModule, UploadModule]` — `AuthModule` для DI-резолва `JwtAuthGuard`/`RolesGuard`, `NewsModule` — для `NewsTagService`/`NewsImageDownloadService`/`PinnedGridService` (используются `AdminNewsTagsController`/`AdminNewsService`/`AdminPinnedGridController`), `UploadModule` (#80) — для `UploadedFileCleanupService`
 
 ### ProfileModule
+
 - Путь: `src/profile/`
 - Назначение: `GET`/`PATCH /profile` + `PATCH /profile/avatar` — чтение/редактирование собственного профиля текущего пользователя (имя/аватар). Только свой профиль (без просмотра чужих, без ролевых ограничений — вне scope #21/#49). Также включает вложенные `game-accounts/` (#47) — CRUD игровых аккаунтов, и `social-link/` (#48) — CRUD соц-сетей текущего пользователя.
 - Компоненты:
@@ -82,6 +89,7 @@
 - Редактируемые поля: `name` через `PATCH /profile`, `avatarUrl` — отдельным `PATCH /profile/avatar` (#49, привязка к аватару из issue #22/#46 закрыта); явный сброс `name`/`avatarUrl` в `null` не поддержан (не требовалось AC). `email` убран из `Profile` в #63 — email живёт только как `SocialLink(type=EMAIL)`
 
 ### SettingsModule
+
 - Путь: `src/settings/`
 - Назначение: `GET`/`PATCH /settings` — чтение/редактирование собственных настроек текущего пользователя. Только свои настройки, без ролевых ограничений.
 - Компоненты:
@@ -91,6 +99,7 @@
 - Редактируемые поля: `theme` (`LIGHT`/`DARK`/`SYSTEM`), `receiveNotifications` (boolean). **Осознанное отступление от AC #23** — пункт «Не входит» issue исключал настройки уведомлений как отдельную фичу; `receiveNotifications` — простой флаг без детализации по типам уведомлений, добавлен по прямому решению пользователя (детализация по типам всё ещё отдельная будущая задача)
 
 ### ScheduleModule
+
 - Путь: `src/schedule/`
 - Назначение: расписание стримов по дням недели для главной страницы (`main1.json`, слайд «Расписание») — ровно 7 строк (Пн-Вс), реально редактируемые ADMIN-ом данные, не статичный UI.
 - Компоненты:
@@ -101,6 +110,7 @@
 - Не входит (см. issue #39): админ-UI управления расписанием (только API), роль `MODERATOR` для редактирования (решено — правит только `ADMIN`)
 
 ### DonatorsModule
+
 - Путь: `src/donators/`
 - Назначение: топ-донатеров для главной страницы (`main2.json`) — до 5 записей (ник + сумма). Источник — внешний сервис доната, провайдер **пока не выбран**; реализовано портом/адаптером, чтобы подключить реальный провайдер позже без изменений в `DonatorsService`/`DonatorsController` (#40).
 - Компоненты:
@@ -111,14 +121,15 @@
 - Не входит (см. issue #40): реальная интеграция с конкретным провайдером — только мок + env-плейсхолдер; пагинация (список всегда ≤5)
 
 ### NewsModule
+
 - Путь: `src/news/`
 - Назначение: публичная лента новостей (список/детально, с поиском/фильтром по тегу), теги новостей (публичный список), лайки (агрегатный счётчик + флаг текущего пользователя, требует авторизации), просмотры (агрегатный счётчик `viewCount`, инкрементируется **один раз на пользователя**, не переключаемое действие в отличие от лайка). Создание/редактирование/удаление новости и полный CRUD тегов — admin-функции, см. `AdminModule` ниже (`admin/news/`, `admin/news-tags/`), переиспользуют сервисы отсюда.
 - Компоненты:
-  - `NewsService` (`news.service.ts`, фильтры добавлены в #67, просмотры — см. ниже) — `findAll(query: NewsQueryDto, currentUserId?)` (пагинация через `PaginationQueryDto`/`buildPaginationMeta`, `orderBy` по умолчанию `publishedAt desc`; `where` строится приватным `buildWhere()` — `search` → `title: { contains }` (MySQL `contains` уже регистронезависим для стандартных collation'ов проекта, без `mode: 'insensitive'` — этот параметр Prisma не поддерживается на MySQL-провайдере), `tagId` → `tags: { some: { id } }`, оба опциональны и комбинируются `AND`; тот же `where` передаётся и в `count()` для корректного `totalPages`), `findOne(id, currentUserId?)` (`404` если не найдена), `like(userId, newsId)`/`unlike(userId, newsId)` — идемпотентны через `newsLike.upsert`/`deleteMany` (composite unique `userId_newsId`), возвращают актуальный `likeCount` + `likedByCurrentUser`, `markViewed(userId, newsId)` — не переключаемое (нет "unview"), идемпотентное: `prisma.$transaction([newsView.create, news.update({ viewCount: { increment: 1 } })])`, повторный вызов ловится через composite unique `userId_newsId` (`P2002` из `Prisma.PrismaClientKnownRequestError`) — в этом случае просто перечитывает текущий `viewCount` без повторного инкремента, возвращает `ViewResponseDto`
-  - `NewsQueryDto` (`dto/news-query.dto.ts`, #67) — `extends PaginationQueryDto`, `search?`/`tagId?` (оба `@IsOptional() @IsString()`)
+  - `NewsService` (`news.service.ts`, фильтры добавлены в #67, просмотры — см. ниже) — `findAll(query: NewsQueryDto, currentUserId?)` (пагинация через `PaginationQueryDto`/`buildPaginationMeta`, `orderBy` по умолчанию `publishedAt desc`; `where` строится приватным `buildWhere(query, currentUserId?)` (#77) — `search` → `title: { contains }` (MySQL `contains` уже регистронезависим для стандартных collation'ов проекта, без `mode: 'insensitive'` — этот параметр Prisma не поддерживается на MySQL-провайдере), темы → `tags: { some: { id: { in } } }` (набор собирает `collectTagIds()` — объединяет `tagIds` с устаревшим `tagId`, пустой набор = условия нет), период → `publishedAt: { gte, lte }` через `buildPublishedAtFilter()`, признаки взаимодействия → `likes`/`views: { some | none: { userId } }` (`true` — только совпадающие, `false` — только НЕ совпадающие, отсутствие параметра — условия нет). Все условия лежат в одном объекте `where`, а Prisma трактует его поля как `AND` (ФИЛ-О-05); тот же `where` передаётся и в `count()`, поэтому общий объём соответствует отобранному, а не всему архиву (ФИЛ-Б-01). Отбор по своим лайкам/просмотрам без сессии — `401 UnauthorizedException` (`requireReader()`), а не молчаливый пустой список), `findOne(id, currentUserId?)` (`404` если не найдена), `like(userId, newsId)`/`unlike(userId, newsId)` — идемпотентны через `newsLike.upsert`/`deleteMany` (composite unique `userId_newsId`), возвращают актуальный `likeCount` + `likedByCurrentUser`, `markViewed(userId, newsId)` — не переключаемое (нет "unview"), идемпотентное: `prisma.$transaction([newsView.create, news.update({ viewCount: { increment: 1 } })])`, повторный вызов ловится через composite unique `userId_newsId` (`P2002` из `Prisma.PrismaClientKnownRequestError`) — в этом случае просто перечитывает текущий `viewCount` без повторного инкремента, возвращает `ViewResponseDto`
+  - `NewsQueryDto` (`dto/news-query.dto.ts`, #67, условия отбора расширены в #77) — `extends PaginationQueryDto`; `search?` (`@IsString`), `tagIds?` (`string[]`, `@ToStringArrayParam()` — принимает и `?tagIds=a&tagIds=b`, и `?tagIds=a,b`), `publishedFrom?`/`publishedTo?` (`@IsDateString`, ISO-8601), `likedByCurrentUser?`/`viewedByCurrentUser?` (`boolean`, `@ToBooleanParam()`), `tagId?` — **deprecated**, оставлен ради админки (`admin-news-page` шлёт одну тему), объединяется с `tagIds`; снять, когда админка переедет. Описания условий живут ЗДЕСЬ, а не дублируются `@ApiQuery` в контроллере
   - `ViewResponseDto` (`dto/view-response.dto.ts`) — ответ `POST /news/:id/view`: `{ viewCount: number, viewedByCurrentUser: true }` (по образцу `LikeResponseDto`, но без переключаемого false-состояния — просмотр необратим)
   - `news.mapper.ts` — `NEWS_INCLUDE` (общий Prisma `include`: `images`, `tags`, `likes: { select: { userId } }`, `views: { select: { userId } }`, `_count.likes`) и `toNewsDto(news, currentUserId?)` — общая функция маппинга в `NewsDto` (включая `viewedByCurrentUser`, тот же null-для-гостя паттерн, что `likedByCurrentUser`), переиспользуется `NewsService` и `AdminNewsService` (после создания/редактирования/удаления новости)
-  - `NewsController` (`news.controller.ts`) — `@Controller('news')`, публичный `GET` (принимает `NewsQueryDto` — `search`/`tagId`, задокументированы `@ApiQuery`)/`GET :id` (защищены `OptionalJwtAuthGuard` — `req.user?.id` заполняется, если валидная cookie есть, иначе остаётся анонимом без `401`; `likedByCurrentUser`/`viewedByCurrentUser: null` только когда сессии реально нет), `POST`/`DELETE :id/like` и `POST :id/view` защищены `JwtAuthGuard`
+  - `NewsController` (`news.controller.ts`) — `@Controller('news')`, публичный `GET` (принимает `NewsQueryDto`; условия отбора задокументированы на полях самого DTO — `@ApiQuery` в контроллере намеренно нет, две копии контракта расходятся при первой правке, #77)/`GET :id` (защищены `OptionalJwtAuthGuard` — `req.user?.id` заполняется, если валидная cookie есть, иначе остаётся анонимом без `401`; `likedByCurrentUser`/`viewedByCurrentUser: null` только когда сессии реально нет), `POST`/`DELETE :id/like` и `POST :id/view` защищены `JwtAuthGuard`
   - `UpdateNewsDto` (`dto/update-news.dto.ts`, #67) — `PartialType(CreateNewsDto)`, все поля `CreateNewsDto` становятся опциональными для частичного обновления
   - `NewsTagService` (`news-tag/news-tag.service.ts`) — `findAll()`, `create(dto)`/`update(id, dto)`/`remove(id)` (используются admin-контроллером); `409 ConflictException` при дубликате `name` (`P2002`), `404 NotFoundException` если тега нет
   - `NewsTagController` (`news-tag/news-tag.controller.ts`) — `@Controller('news-tags')`, публичный `GET` (список тегов, `orderBy: name asc`)
@@ -132,9 +143,11 @@
   - `pinned-grid.mapper.ts` (`pinned-grid/pinned-grid.mapper.ts`, #71, переписан под `PinnedNews`/`PinnedPlacement` в #73) — `PINNED_LAYOUT_INCLUDE` (`{ placements: { include: { pinnedNews: { include: { news: { include: { images: true } } } } } } }`) + `toPinnedGridLayoutDto(layout)`, по образцу `news.mapper.ts`; с #80 картинка слота — обложка новости: приватный `resolveFocalPoint()` убран, слот отдаёт `cover: resolveNewsCover(pinnedNews.news)` (см. `news-cover.ts` выше). Своей картинки у закрепления больше нет, и отсутствующая обложка не подменяется первым изображением
   - `PinnedGridController` (`pinned-grid/pinned-grid.controller.ts`, #71, `:viewport` — `small`/`large` с #73) — `@Controller('news/pinned-layout')`, публичный `GET :viewport` (парсится в enum через `parsePinnedGridViewport()`, `400` на неизвестное значение)
   - `parsePinnedGridViewport()` (`pinned-grid/pinned-grid-viewport.util.ts`, #71) — переиспользуется `PinnedGridController` и `AdminPinnedGridController` для маппинга lowercase route-параметра в `PinnedGridViewport`
+  - `toInclusiveBoundary(value, edge)` (`utils/published-boundary.util.ts`, #77) — граница периода публикации, ВКЛЮЧАЮЩАЯ саму себя (ФИЛ-О-02): дата без времени (`2026-08-27`) называет день целиком, поэтому нижняя граница разворачивается в его начало, верхняя — в конец (`23:59:59.999Z`); полный ISO-datetime берётся как есть, вместе со смещением. Без этого `publishedTo=2026-08-27` молча отрезал бы весь день
 - `imports: [AuthModule]`, `exports: [NewsTagService, NewsImageDownloadService, PinnedGridService]` — `AdminModule` импортирует `NewsModule` для доступа ко всем трём сервисам вместо повторной регистрации
 
 ### UploadModule
+
 - Путь: `src/upload/`
 - Назначение: `POST /upload` — приём файла (multipart), сохранение на локальную ФС сервера (`uploads/` в корне проекта, не в git), возврат публичного URL. Загрузка защищена `JwtAuthGuard`, отдача самих файлов по URL — публична, без авторизации (см. `useStaticAssets` в `src/main.ts`).
 - Компоненты:
@@ -169,7 +182,7 @@
 - `GameAccount` (#46) — 1:N с `User` (`userId`, `onDelete: Cascade`, без `@unique` — пользователь может иметь несколько игровых аккаунтов), `nickname` (`String`), `externalId` (`String` — id аккаунта в игре, намеренно не `id`, чтобы не путать с PK строки), `createdAt`/`updatedAt`; CRUD API — `GameAccountModule` (см. ProfileModule выше, #47)
 - `SocialLink` (#46) — 1:N с `User` (`userId`, `onDelete: Cascade`), `type` (`SocialLinkType`), `value` (`String`, произвольный формат — валидация под конкретный `type` не входит в #46/#48, только длина/непустота); CRUD API — `SocialLinkController`/`SocialLinkService` (см. ProfileModule выше, #48)
 - `NewsCoverType` (enum, #80) — `NONE` \| `IMAGE` \| `CUSTOM`; состояние обложки хранится явно, а не выводится из наличия картинок (`ОБЛ-Б-01`)
-- `News` (#65, обложка — #80) — `title`, `description` (`@db.Text`), `publishedAt` (default `now()`, можно переопределить при создании), `viewCount` (default `0`, инкрементируется через `NewsView`, см. ниже), `coverType` (`NewsCoverType`, default `NONE`), `coverUrl` (nullable, **всегда** локальный `/uploads/*` — внешняя ссылка скачивается при приёме и как источник показа не хранится), `coverFocalX`/`coverFocalY` (оба `Int?`, только для своей обложки: у обложки из набора фокус живёт на `NewsImage`); `hasNoImage` **убран** в #80 — флаг хранился, но ни одна ветка логики на него не смотрела, его смысл перенесён в `coverType = NONE` миграцией `20260827090000_news_cover`; `createdAt`/`updatedAt`; связи `images: NewsImage[]`, `tags: NewsTag[]` (implicit many-to-many, Prisma сама создаёт join-таблицу), `likes: NewsLike[]`, `views: NewsView[]`, `pinnedNews: PinnedNews?` (опциональная обратная связь 1:1, #73)
+- `News` (#65, обложка — #80, индекс по дате публикации — #77) — `title`, `description` (`@db.Text`), `publishedAt` (default `now()`, можно переопределить при создании), `viewCount` (default `0`, инкрементируется через `NewsView`, см. ниже), `coverType` (`NewsCoverType`, default `NONE`), `coverUrl` (nullable, **всегда** локальный `/uploads/*` — внешняя ссылка скачивается при приёме и как источник показа не хранится), `coverFocalX`/`coverFocalY` (оба `Int?`, только для своей обложки: у обложки из набора фокус живёт на `NewsImage`); `hasNoImage` **убран** в #80 — флаг хранился, но ни одна ветка логики на него не смотрела, его смысл перенесён в `coverType = NONE` миграцией `20260827090000_news_cover`; `createdAt`/`updatedAt`; связи `images: NewsImage[]`, `tags: NewsTag[]` (implicit many-to-many, Prisma сама создаёт join-таблицу — с `INDEX _NewsToNewsTag_B_index(B)`, поэтому отбор по темам индекса не требует), `likes: NewsLike[]`, `views: NewsView[]`, `pinnedNews: PinnedNews?` (опциональная обратная связь 1:1, #73); `@@index([publishedAt])` (#77) — лента всегда сортируется по этому полю, а отбор по периоду добавляет диапазонное условие, без индекса это полный проход по архиву на каждую порцию
 - `NewsImage` (#65, focal point — #73) — 1:N с `News` (`newsId`, `onDelete: Cascade`) — отдельная модель, а не `String[]` (MySQL/Prisma не поддерживает нативный scalar-массив), `url` (всегда `/uploads/*`, никогда внешний URL — см. `NewsImageDownloadService`), `order` (порядок отображения), `focalX`/`focalY` (оба `Int?`, 0..100, `null` = центр 50/50) — точка фокуса для `object-position` на фронте (`object-fit: cover`), нужна там, где картинка попадает в ячейку с формой, отличной от исходных пропорций (обложка новости в витрине и ленте); nullable намеренно — задаётся только там, где нужно, не для всех картинок подряд; правится через `PATCH /admin/news/images/:id/focal-point`
 - `NewsTag` (#65, `textColor` — #69) — `name` (`@unique`), `color` (цвет фона плашки/чипа), `textColor` (цвет текста, независим от `color`), `createdAt`/`updatedAt`; `news: News[]` — implicit many-to-many с `News`
 - `NewsLike` (#65) — 1:N с `User` (`userId`, `onDelete: Cascade`) и `News` (`newsId`, `onDelete: Cascade`), `@@unique([userId, newsId])` (составной unique, тот же паттерн, что `AuthMethod.@@unique([type, identifier])`) — не даёт поставить лайк дважды, используется для идемпотентного `upsert` в `NewsService.like()`
@@ -186,6 +199,7 @@
 - `ClassSerializerInterceptor` (глобальный, `src/main.ts`, #26) — применяет `@Exclude()`/`@Expose()` (class-transformer) к ответам контроллеров; работает только для настоящих экземпляров классов (не для plain-объектов Prisma), поэтому чувствительные Prisma-модели оборачиваются в сущности вроде `UserEntity` (`src/auth/entities/user.entity.ts`) перед возвратом из сервисов. С #63 `User` больше не хранит `passwordHash`/`googleId` вовсе (см. `AuthMethod`), поэтому `UserEntity` больше не нуждается в `@Exclude()` на этих полях
 - `AllExceptionsFilter` — `src/shared/filters/http-exception.filter.ts`, регистрируется через `APP_FILTER` в `AppModule`; единый формат ошибки для всего API — `ErrorResponseDto` (`src/shared/dto/error-response.dto.ts`): `statusCode`, `message` (`string | string[]`), `error`, `timestamp`, `path`. Зарегистрирован в Swagger как `extraModels` (без демо-эндпоинта — см. `src/main.ts`)
 - Конвенция пагинации/сортировки/фильтрации — `PaginationQueryDto` (`src/shared/dto/pagination-query.dto.ts`: `page`/`limit`/`sortBy`/`sortOrder`, наследуется feature-DTO для своих полей фильтра), `PaginationMetaDto` (`src/shared/dto/pagination-meta.dto.ts`), `buildPaginationMeta()` (`src/shared/pagination/paginate.ts`), `ApiPaginatedResponse()` decorator (`src/shared/decorators/api-paginated-response.decorator.ts`) — пример использования в README
+- Разбор query-параметров — `src/shared/transforms/query-param.transform.ts` (#77): `@ToBooleanParam()` и `@ToStringArrayParam()` для полей DTO плюс чистые `parseBooleanParam()`/`parseStringArrayParam()`. **Зачем нужны:** глобальный `ValidationPipe` включает `enableImplicitConversion`, а class-transformer приводит значение к boolean через `Boolean(value)` — строка `'false'` при этом становится `true`; массивы же приходят по-разному (`?ids=a` строкой, `?ids=a&ids=b` массивом, встречается и `?ids=a,b`). Оба декоратора читают СЫРОЕ значение из `obj`, а не уже приведённое `value`: неявное приведение отрабатывает раньше кастомного трансформа. Нераспознанное значение возвращается как есть, чтобы его отбраковал `@IsBoolean()`/`@IsString({ each: true })` с ошибкой 400, а не тихо исчезло вместе с условием отбора
 
 ## Эндпоинты
 
@@ -224,7 +238,7 @@
 - `GET /donators/top` — `src/donators/donators.controller.ts` — публичный, до 5 донатеров (`{ nickname, amount }`), отсортированы по убыванию суммы
 - `GET /schedule` — `src/schedule/schedule.controller.ts` — публичный, возвращает все 7 дней недели в порядке Пн→Вс
 - `PATCH /schedule/:weekday` — `src/schedule/schedule.controller.ts` — защищён `JwtAuthGuard` + `RolesGuard(ADMIN)`, обновляет один день; `401` без сессии, `403` не-ADMIN, `400` невалидный `:weekday`
-- `GET /news` — `src/news/news.controller.ts` (#65, фильтры `search`/`tagId` добавлены в #67, `OptionalJwtAuthGuard` — фикс `likedByCurrentUser`/`viewedByCurrentUser` для авторизованных после F5) — публичный (`OptionalJwtAuthGuard`, не требует cookie), пагинированный список новостей (`{ items, meta }`), сортировка по умолчанию `publishedAt desc`; опциональные `search` (подстрока по `title`, case-insensitive) и `tagId` (точное совпадение по тегу), комбинируются `AND`; `likedByCurrentUser`/`viewedByCurrentUser: null` только без авторизации, с валидной cookie — реальные значения для текущего пользователя
+- `GET /news` — `src/news/news.controller.ts` (#65, фильтры `search`/`tagId` добавлены в #67, `OptionalJwtAuthGuard` — фикс `likedByCurrentUser`/`viewedByCurrentUser` для авторизованных после F5) — публичный (`OptionalJwtAuthGuard`, не требует cookie), пагинированный список новостей (`{ items, meta }`), сортировка по умолчанию `publishedAt desc`. Условия отбора (#77, все опциональны, комбинируются `AND`, применяются по всему архиву на стороне БД — не по загруженной порции): `search` (подстрока по `title`, case-insensitive), `tagIds` (несколько тем сразу — совпадение по любой из них; `?tagIds=a&tagIds=b` или `?tagIds=a,b`), `publishedFrom`/`publishedTo` (период публикации, каждая граница независима и **включается**; дата без времени = весь день целиком: `publishedTo=2026-08-27` доходит до `23:59:59.999Z`), `likedByCurrentUser`/`viewedByCurrentUser` (`true` — только отмеченные/просмотренные читателем, `false` — только остальные, **отсутствие параметра ≠ `false`**; требуют сессии, иначе `401`), `tagId` — deprecated-алиас одной темы. Отбор применяется и к `meta.total`, поэтому клиент знает, когда останавливать подгрузку; `likedByCurrentUser`/`viewedByCurrentUser: null` в ответе только без авторизации, с валидной cookie — реальные значения для текущего пользователя
 - `GET /news/:id` — `src/news/news.controller.ts` (#65, `OptionalJwtAuthGuard` — тот же фикс, `images[].focalX`/`focalY` — #73) — публичный (`OptionalJwtAuthGuard`), детальная новость (заголовок/описание/картинки/теги/`likeCount`/`viewCount`/`cover`/`likedByCurrentUser`/`viewedByCurrentUser`); `cover` (#80) — `{ type: 'none'|'image'|'custom', url, focalPoint }`, заменил булев `hasNoImage`: состояние обложки записано явно, и та же обложка приходит в слоте витрины; каждая картинка в `images[]` теперь несёт `focalX`/`focalY` (nullable, точка фокуса для `object-position`); `404` если не найдена
 - `POST /news/:id/like` — `src/news/news.controller.ts` (#65) — защищён `JwtAuthGuard`, ставит лайк текущего пользователя (идемпотентно); `401` без сессии, `404` если новость не найдена
 - `DELETE /news/:id/like` — `src/news/news.controller.ts` (#65) — защищён `JwtAuthGuard`, снимает лайк текущего пользователя (идемпотентно); `401` без сессии, `404` если новость не найдена

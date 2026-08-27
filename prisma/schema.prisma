@@ -159,6 +159,11 @@ model News {
   likes      NewsLike[]
   views      NewsView[]
   pinnedNews PinnedNews?
+
+  // Лента всегда сортируется по publishedAt, а отбор по периоду публикации
+  // (streamer.API#77, ФИЛ-О-02) добавляет к этому диапазонное условие —
+  // без индекса это полный проход по архиву на каждую порцию.
+  @@index([publishedAt])
 }
 
 model NewsImage {

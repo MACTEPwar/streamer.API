@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { NewsCoverType } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -122,25 +122,182 @@ describe('NewsService', () => {
 
       expect(prismaMock.news.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { tags: { some: { id: 'tag-1' } } },
+          where: { tags: { some: { id: { in: ['tag-1'] } } } },
         }),
       );
     });
 
-    it('combines search and tagId filters', async () => {
+    it('filters by several tags at once — a match on any of them (ФИЛ-О-03)', async () => {
       prismaMock.news.findMany.mockResolvedValue([sampleNews]);
       prismaMock.news.count.mockResolvedValue(1);
 
       const query = new NewsQueryDto();
-      query.search = 'турнир';
+      query.tagIds = ['tag-1', 'tag-2'];
+      await service.findAll(query);
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tags: { some: { id: { in: ['tag-1', 'tag-2'] } } } },
+        }),
+      );
+    });
+
+    it('merges the deprecated tagId into tagIds without duplicating it', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.tagIds = ['tag-1', 'tag-2'];
       query.tagId = 'tag-1';
       await service.findAll(query);
 
       expect(prismaMock.news.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
+          where: { tags: { some: { id: { in: ['tag-1', 'tag-2'] } } } },
+        }),
+      );
+    });
+
+    it('ignores an empty tag set instead of matching nothing', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.tagIds = [];
+      await service.findAll(query);
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+    });
+
+    it('filters by an inclusive publication period (ФИЛ-О-02)', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.publishedFrom = '2026-08-01';
+      query.publishedTo = '2026-08-27';
+      await service.findAll(query);
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            publishedAt: {
+              gte: new Date('2026-08-01T00:00:00.000Z'),
+              lte: new Date('2026-08-27T23:59:59.999Z'),
+            },
+          },
+        }),
+      );
+    });
+
+    it('accepts each period boundary independently (ФИЛ-О-02)', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.publishedTo = '2026-08-27';
+      await service.findAll(query);
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { publishedAt: { lte: new Date('2026-08-27T23:59:59.999Z') } },
+        }),
+      );
+    });
+
+    it('filters by the reader’s own likes and views (ФИЛ-О-04)', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.likedByCurrentUser = true;
+      query.viewedByCurrentUser = true;
+      await service.findAll(query, 'u1');
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            likes: { some: { userId: 'u1' } },
+            views: { some: { userId: 'u1' } },
+          },
+        }),
+      );
+    });
+
+    it('inverts the interaction filters when they are false', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.likedByCurrentUser = false;
+      query.viewedByCurrentUser = false;
+      await service.findAll(query, 'u1');
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            likes: { none: { userId: 'u1' } },
+            views: { none: { userId: 'u1' } },
+          },
+        }),
+      );
+    });
+
+    it('rejects interaction filters without a session instead of answering with an empty list', async () => {
+      const query = new NewsQueryDto();
+      query.likedByCurrentUser = true;
+
+      await expect(service.findAll(query)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(prismaMock.news.findMany).not.toHaveBeenCalled();
+    });
+
+    it('applies the selection to the total as well, so paging matches what was filtered (ФИЛ-Б-01)', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.publishedFrom = '2026-08-01';
+      query.tagIds = ['tag-1'];
+      await service.findAll(query);
+
+      const where = {
+        publishedAt: { gte: new Date('2026-08-01T00:00:00.000Z') },
+        tags: { some: { id: { in: ['tag-1'] } } },
+      };
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where }),
+      );
+      expect(prismaMock.news.count).toHaveBeenCalledWith({ where });
+    });
+
+    it('combines every condition at once — all must hold (ФИЛ-О-05)', async () => {
+      prismaMock.news.findMany.mockResolvedValue([sampleNews]);
+      prismaMock.news.count.mockResolvedValue(1);
+
+      const query = new NewsQueryDto();
+      query.search = 'турнир';
+      query.tagIds = ['tag-1', 'tag-2'];
+      query.publishedFrom = '2026-08-01';
+      query.publishedTo = '2026-08-27';
+      query.likedByCurrentUser = true;
+      query.viewedByCurrentUser = false;
+      await service.findAll(query, 'u1');
+
+      expect(prismaMock.news.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
           where: {
             title: { contains: 'турнир' },
-            tags: { some: { id: 'tag-1' } },
+            tags: { some: { id: { in: ['tag-1', 'tag-2'] } } },
+            publishedAt: {
+              gte: new Date('2026-08-01T00:00:00.000Z'),
+              lte: new Date('2026-08-27T23:59:59.999Z'),
+            },
+            likes: { some: { userId: 'u1' } },
+            views: { none: { userId: 'u1' } },
           },
         }),
       );

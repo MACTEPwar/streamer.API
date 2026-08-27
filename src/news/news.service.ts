@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildPaginationMeta } from '../shared/pagination/paginate';
@@ -7,13 +11,17 @@ import { NewsDto } from './dto/news.dto';
 import { NewsQueryDto } from './dto/news-query.dto';
 import { ViewResponseDto } from './dto/view-response.dto';
 import { NEWS_INCLUDE, toNewsDto } from './news.mapper';
+import { toInclusiveBoundary } from './utils/published-boundary.util';
 
 @Injectable()
 export class NewsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(query: NewsQueryDto, currentUserId?: string) {
-    const where = this.buildWhere(query);
+    // Один и тот же `where` уходит и в findMany, и в count: отбор применяется
+    // ДО разбиения на порции, поэтому общий объём соответствует отобранному
+    // (ФИЛ-Б-01), а сам отбор идёт по всему архиву на стороне БД (ФИЛ-О-01).
+    const where = this.buildWhere(query, currentUserId);
 
     const [items, total] = await Promise.all([
       this.prisma.news.findMany({
@@ -97,18 +105,90 @@ export class NewsService {
     }
   }
 
-  private buildWhere(query: NewsQueryDto): Prisma.NewsWhereInput {
+  /**
+   * Условия складываются в один объект `where`: Prisma трактует его поля как
+   * AND, то есть новость попадает в результат, только удовлетворяя всем
+   * заданным условиям одновременно (ФИЛ-О-05).
+   */
+  private buildWhere(
+    query: NewsQueryDto,
+    currentUserId?: string,
+  ): Prisma.NewsWhereInput {
     const where: Prisma.NewsWhereInput = {};
 
     if (query.search) {
       where.title = { contains: query.search };
     }
 
-    if (query.tagId) {
-      where.tags = { some: { id: query.tagId } };
+    const tagIds = this.collectTagIds(query);
+    if (tagIds.length > 0) {
+      where.tags = { some: { id: { in: tagIds } } };
+    }
+
+    const publishedAt = this.buildPublishedAtFilter(query);
+    if (publishedAt) {
+      where.publishedAt = publishedAt;
+    }
+
+    if (query.likedByCurrentUser !== undefined) {
+      const userId = this.requireReader(currentUserId);
+      where.likes = query.likedByCurrentUser
+        ? { some: { userId } }
+        : { none: { userId } };
+    }
+
+    if (query.viewedByCurrentUser !== undefined) {
+      const userId = this.requireReader(currentUserId);
+      where.views = query.viewedByCurrentUser
+        ? { some: { userId } }
+        : { none: { userId } };
     }
 
     return where;
+  }
+
+  /** Устаревший `tagId` объединяется с `tagIds` — см. NewsQueryDto. */
+  private collectTagIds(query: NewsQueryDto): string[] {
+    const ids = [...(query.tagIds ?? [])];
+
+    if (query.tagId) {
+      ids.push(query.tagId);
+    }
+
+    return [...new Set(ids)];
+  }
+
+  private buildPublishedAtFilter(
+    query: NewsQueryDto,
+  ): Prisma.DateTimeFilter | undefined {
+    const range: Prisma.DateTimeFilter = {};
+
+    if (query.publishedFrom) {
+      range.gte = toInclusiveBoundary(query.publishedFrom, 'start');
+    }
+
+    if (query.publishedTo) {
+      range.lte = toInclusiveBoundary(query.publishedTo, 'end');
+    }
+
+    // Каждая граница задаётся независимо (ФИЛ-О-02) — период может быть
+    // открыт с любой стороны.
+    return range.gte || range.lte ? range : undefined;
+  }
+
+  /**
+   * Отбор по своим лайкам и просмотрам без сессии не имеет смысла: молча
+   * вернуть пустой список — соврать, молча проигнорировать условие — отдать
+   * не то, что просили. Поэтому 401 (ФИЛ-О-04).
+   */
+  private requireReader(currentUserId?: string): string {
+    if (!currentUserId) {
+      throw new UnauthorizedException(
+        'Отбор по просмотренным и отмеченным лайком новостям доступен только авторизованному читателю',
+      );
+    }
+
+    return currentUserId;
   }
 
   private async assertNewsExists(id: string): Promise<void> {
