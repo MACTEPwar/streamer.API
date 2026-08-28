@@ -1,4 +1,6 @@
 import { NewsCoverType } from '../generated/prisma/enums';
+import { listImageVariants } from '../upload/image-variant.util';
+import type { ImageVariant } from '../upload/image-variant.util';
 
 /**
  * Состояние обложки на границе API: фронт использует нижний регистр, Prisma-enum
@@ -42,6 +44,7 @@ export interface ResolvedNewsCover {
   type: WireNewsCoverType;
   url: string | null;
   focalPoint: NewsCoverFocalPoint | null;
+  variants: ImageVariant[];
 }
 
 interface NewsCoverSource {
@@ -56,6 +59,7 @@ const NO_COVER: ResolvedNewsCover = {
   type: 'none',
   url: null,
   focalPoint: null,
+  variants: [],
 };
 
 function toFocalPoint(
@@ -82,6 +86,7 @@ export function resolveNewsCover(news: NewsCoverSource): ResolvedNewsCover {
       type: 'custom',
       url: news.coverUrl,
       focalPoint: toFocalPoint(news.coverFocalX, news.coverFocalY),
+      variants: listImageVariants(news.coverUrl),
     };
   }
 
@@ -93,5 +98,6 @@ export function resolveNewsCover(news: NewsCoverSource): ResolvedNewsCover {
     type: 'image',
     url: news.coverUrl,
     focalPoint: image ? toFocalPoint(image.focalX, image.focalY) : null,
+    variants: listImageVariants(news.coverUrl),
   };
 }

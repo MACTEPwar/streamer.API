@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ImageVariantDto } from '../../upload/dto/image-variant.dto';
 import { NewsTagDto } from '../news-tag/dto/news-tag.dto';
 import { WIRE_NEWS_COVER_TYPES } from '../news-cover';
 import type { WireNewsCoverType } from '../news-cover';
@@ -36,6 +37,13 @@ export class NewsCoverDto {
     description: 'null — фокус не задан, показывать по центру (50/50)',
   })
   focalPoint: NewsCoverFocalPointDto | null;
+
+  @ApiProperty({
+    type: [ImageVariantDto],
+    description:
+      'Размерные варианты обложки (streamer.API#78) — пусто при type = none',
+  })
+  variants: ImageVariantDto[];
 }
 
 export class NewsDto {

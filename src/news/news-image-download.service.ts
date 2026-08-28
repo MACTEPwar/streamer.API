@@ -4,7 +4,7 @@ import { lookup } from 'node:dns/promises';
 import { once } from 'node:events';
 import { createWriteStream } from 'node:fs';
 import { access, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
 import {
   MAX_UPLOAD_SIZE_BYTES,
@@ -12,6 +12,7 @@ import {
   UPLOADS_DIR,
   UPLOADS_URL_PREFIX,
 } from '../upload/constants/upload.constant';
+import { ImageVariantService } from '../upload/image-variant.service';
 import {
   ALLOWED_IMAGE_URL_PROTOCOLS,
   IMAGE_DOWNLOAD_TIMEOUT_MS,
@@ -37,6 +38,8 @@ export interface ResolvedNewsImages {
  */
 @Injectable()
 export class NewsImageDownloadService {
+  constructor(private readonly imageVariantService: ImageVariantService) {}
+
   async resolveImageUrls(imageUrls: string[]): Promise<ResolvedNewsImages> {
     const resolved: ResolvedNewsImage[] = [];
     const downloadedFilePaths: string[] = [];
@@ -142,6 +145,10 @@ export class NewsImageDownloadService {
 
     await this.writeResponseToFile(response.body, filePath, rawUrl);
 
+    // Тот же приём, что у `POST /upload` (streamer.API#78) — вариант нужен
+    // и для картинки, попавшей на сервер по внешней ссылке.
+    await this.imageVariantService.generate(filename);
+
     return { url: `${UPLOADS_URL_PREFIX}/${filename}`, filePath };
   }
 
@@ -227,6 +234,11 @@ export class NewsImageDownloadService {
   }
 
   private async removeFileSafe(filePath: string): Promise<void> {
+    // Откат неудавшегося сохранения (например News не создалась) убирает и
+    // варианты, сгенерированные для этого файла (streamer.API#78) — иначе
+    // они остались бы сиротами, на которые уже ничто не сможет сослаться.
+    await this.imageVariantService.deleteVariants(basename(filePath));
+
     try {
       await unlink(filePath);
     } catch {

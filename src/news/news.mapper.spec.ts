@@ -24,7 +24,12 @@ describe('toNewsDto', () => {
   it('reports the cover state of a news without one', () => {
     const dto = toNewsDto(baseNews);
 
-    expect(dto.cover).toEqual({ type: 'none', url: null, focalPoint: null });
+    expect(dto.cover).toEqual({
+      type: 'none',
+      url: null,
+      focalPoint: null,
+      variants: [],
+    });
   });
 
   it('reports the cover picked from the images of the news', () => {
@@ -49,6 +54,7 @@ describe('toNewsDto', () => {
       type: 'image',
       url: '/uploads/b.jpg',
       focalPoint: { x: 30, y: 40 },
+      variants: [],
     });
   });
 

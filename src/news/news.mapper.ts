@@ -1,4 +1,5 @@
 import { Prisma } from '../generated/prisma/client';
+import { listImageVariants } from '../upload/image-variant.util';
 import { NewsDto } from './dto/news.dto';
 import { resolveNewsCover } from './news-cover';
 
@@ -41,6 +42,7 @@ export function toNewsDto(
         order: image.order,
         focalX: image.focalX,
         focalY: image.focalY,
+        variants: listImageVariants(image.url),
       })),
     tags: news.tags.map((tag) => ({
       id: tag.id,
