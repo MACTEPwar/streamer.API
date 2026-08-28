@@ -158,12 +158,7 @@ export class AdminNewsService {
               : undefined,
             ...cover,
             images: resolvedImages
-              ? {
-                  create: resolvedImages.map((image, index) => ({
-                    url: image.url,
-                    order: index,
-                  })),
-                }
+              ? { create: this.rebuildImages(resolvedImages, current.images) }
               : undefined,
             tags: dto.tagIds
               ? { set: dto.tagIds.map((tagId) => ({ id: tagId })) }
@@ -184,6 +179,49 @@ export class AdminNewsService {
     }
 
     return toNewsDto(news);
+  }
+
+  /**
+   * Состав изображений по-прежнему заменяется целиком (удалить все и создать
+   * заново — проще и безопаснее, чем diff по url), но **точка фокуса
+   * переносится по адресу картинки** (`ИЗО-Б-02`, streamer.API#79).
+   *
+   * До этого фокус пропадал вместе со старой записью, и администратор
+   * расставлял его заново после каждой правки состава — причём узнавал об
+   * этом уже на публичной странице, где карточка вдруг начинала резать
+   * картинку по центру.
+   *
+   * Фокус принадлежит изображению, а не закреплению (`ФОК-О-01`), поэтому
+   * ключ переноса — адрес: та же картинка в новом наборе получает свой
+   * прежний фокус, впервые добавленная — `null` (кадрируется по центру,
+   * `ФОК-О-02`), выбывшая исчезает вместе со своим. Порядок при этом
+   * берётся из НОВОГО набора и старым не консервируется (`ИЗО-О-01`).
+   */
+  private rebuildImages(
+    resolvedImages: ResolvedNewsImage[],
+    currentImages: {
+      url: string;
+      focalX: number | null;
+      focalY: number | null;
+    }[],
+  ) {
+    const focalByUrl = new Map(
+      currentImages.map((image) => [
+        image.url,
+        { focalX: image.focalX, focalY: image.focalY },
+      ]),
+    );
+
+    return resolvedImages.map((image, index) => {
+      const focal = focalByUrl.get(image.url);
+
+      return {
+        url: image.url,
+        order: index,
+        focalX: focal?.focalX ?? null,
+        focalY: focal?.focalY ?? null,
+      };
+    });
   }
 
   async remove(id: string): Promise<NewsDto> {
@@ -353,7 +391,9 @@ export class AdminNewsService {
         id: true,
         coverType: true,
         coverUrl: true,
-        images: { select: { url: true } },
+        // focalX/focalY нужны, чтобы перенести фокус на пересозданные записи
+        // при замене состава изображений (ИЗО-Б-02, см. rebuildImages()).
+        images: { select: { url: true, focalX: true, focalY: true } },
       },
     });
 
