@@ -84,6 +84,7 @@ describe('toPinnedGridLayoutDto', () => {
       type: 'custom',
       url: '/uploads/own.jpg',
       focalPoint: { x: 70, y: 80 },
+      variants: [],
     });
   });
 
@@ -94,6 +95,7 @@ describe('toPinnedGridLayoutDto', () => {
       type: 'none',
       url: null,
       focalPoint: null,
+      variants: [],
     });
   });
 

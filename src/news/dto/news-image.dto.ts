@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ImageVariantDto } from '../../upload/dto/image-variant.dto';
 
 export class NewsImageDto {
   @ApiProperty({ example: 'cly1a2b3c0000abcd1234efgh' })
@@ -15,4 +16,12 @@ export class NewsImageDto {
 
   @ApiProperty({ example: null, nullable: true })
   focalY: number | null;
+
+  @ApiProperty({
+    type: [ImageVariantDto],
+    description:
+      'Размерные варианты этого изображения (streamer.API#78) — только те, что ' +
+      'реально существуют (оригинал уже этой ширины или уже, вариант не создаётся)',
+  })
+  variants: ImageVariantDto[];
 }

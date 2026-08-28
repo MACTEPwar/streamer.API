@@ -18,6 +18,7 @@ import {
   ResolvedNewsImage,
 } from '../../news/news-image-download.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { listImageVariants } from '../../upload/image-variant.util';
 import { UploadedFileCleanupService } from '../../upload/uploaded-file-cleanup.service';
 
 /** Поля обложки в том виде, в каком они ложатся в строку News. */
@@ -265,10 +266,12 @@ export class AdminNewsService {
       throw new NotFoundException('Изображение не найдено');
     }
 
-    return this.prisma.newsImage.update({
+    const updated = await this.prisma.newsImage.update({
       where: { id },
       data: { focalX: dto.focalX, focalY: dto.focalY },
     });
+
+    return { ...updated, variants: listImageVariants(updated.url) };
   }
 
   /**

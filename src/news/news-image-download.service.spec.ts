@@ -4,6 +4,7 @@ import { createWriteStream } from 'node:fs';
 import { access, unlink } from 'node:fs/promises';
 import { lookup } from 'node:dns/promises';
 import { UPLOADS_URL_PREFIX } from '../upload/constants/upload.constant';
+import { ImageVariantService } from '../upload/image-variant.service';
 import { NewsImageDownloadService } from './news-image-download.service';
 
 jest.mock('node:dns/promises', () => ({ lookup: jest.fn() }));
@@ -31,10 +32,16 @@ describe('NewsImageDownloadService', () => {
   const unlinkMock = unlink as jest.Mock;
   const createWriteStreamMock = createWriteStream as jest.Mock;
   let fetchMock: jest.Mock;
+  const imageVariantServiceMock = {
+    generate: jest.fn(),
+    deleteVariants: jest.fn(),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new NewsImageDownloadService();
+    service = new NewsImageDownloadService(
+      imageVariantServiceMock as unknown as ImageVariantService,
+    );
     fetchMock = jest.fn();
     global.fetch = fetchMock;
     createWriteStreamMock.mockImplementation(() => new FakeWriteStream());
@@ -139,6 +146,24 @@ describe('NewsImageDownloadService', () => {
       expect(downloadedFilePaths).toHaveLength(1);
     });
 
+    it('generates size variants for a freshly downloaded external image (streamer.API#78)', async () => {
+      lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+      fetchMock.mockResolvedValue(
+        new Response('fake-image-bytes', {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      );
+
+      const { resolved } = await service.resolveImageUrls([
+        'https://example.com/pic.png',
+      ]);
+
+      expect(imageVariantServiceMock.generate).toHaveBeenCalledWith(
+        resolved[0].url.slice(UPLOADS_URL_PREFIX.length + 1),
+      );
+    });
+
     it('rejects a disallowed content-type', async () => {
       lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
       fetchMock.mockResolvedValue(
@@ -193,6 +218,19 @@ describe('NewsImageDownloadService', () => {
       await service.cleanup(['/uploads/a.jpg', '/uploads/b.jpg']);
 
       expect(unlinkMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('removes the size variants of every rolled-back file (streamer.API#78)', async () => {
+      unlinkMock.mockResolvedValue(undefined);
+
+      await service.cleanup(['/uploads/a.jpg', '/uploads/b.jpg']);
+
+      expect(imageVariantServiceMock.deleteVariants).toHaveBeenCalledWith(
+        'a.jpg',
+      );
+      expect(imageVariantServiceMock.deleteVariants).toHaveBeenCalledWith(
+        'b.jpg',
+      );
     });
   });
 });

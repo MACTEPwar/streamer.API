@@ -3,6 +3,7 @@ import { readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { UPLOADS_DIR } from './constants/upload.constant';
 import { PrismaService } from '../prisma/prisma.service';
+import { ImageVariantService } from './image-variant.service';
 import { UploadedFileCleanupService } from './uploaded-file-cleanup.service';
 
 // Директория загрузок подменяется на временную: тест удаляет настоящие файлы,
@@ -31,6 +32,9 @@ describe('UploadedFileCleanupService', () => {
     news: { count: jest.fn() },
     profile: { count: jest.fn() },
   };
+  const imageVariantServiceMock = {
+    deleteVariants: jest.fn(),
+  };
 
   const unreferenced = () => {
     prismaMock.newsImage.count.mockResolvedValue(0);
@@ -54,6 +58,7 @@ describe('UploadedFileCleanupService', () => {
     jest.clearAllMocks();
     service = new UploadedFileCleanupService(
       prismaMock as unknown as PrismaService,
+      imageVariantServiceMock as unknown as ImageVariantService,
     );
   });
 
@@ -64,6 +69,27 @@ describe('UploadedFileCleanupService', () => {
     await service.deleteIfUnreferenced('/uploads/orphan.jpg');
 
     expect(await remainingFiles()).not.toContain('orphan.jpg');
+  });
+
+  it('deletes the size variants of the file together with the original', async () => {
+    await createFile('orphan.jpg');
+    unreferenced();
+
+    await service.deleteIfUnreferenced('/uploads/orphan.jpg');
+
+    expect(imageVariantServiceMock.deleteVariants).toHaveBeenCalledWith(
+      'orphan.jpg',
+    );
+  });
+
+  it('does not touch variants of a file that is still referenced', async () => {
+    await createFile('in-gallery.jpg');
+    unreferenced();
+    prismaMock.newsImage.count.mockResolvedValue(1);
+
+    await service.deleteIfUnreferenced('/uploads/in-gallery.jpg');
+
+    expect(imageVariantServiceMock.deleteVariants).not.toHaveBeenCalled();
   });
 
   it('keeps a file still used by an image of some news', async () => {

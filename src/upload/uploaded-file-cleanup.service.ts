@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
-import { UPLOADS_DIR, UPLOADS_URL_PREFIX } from './constants/upload.constant';
+import { UPLOADS_DIR } from './constants/upload.constant';
+import { ImageVariantService } from './image-variant.service';
+import { toUploadsFilename } from './uploads-path.util';
 
 /**
  * Удаление файла, переставшего использоваться (`ФАЙ-Б-04`). Проверка «не нужен
@@ -18,10 +20,13 @@ import { UPLOADS_DIR, UPLOADS_URL_PREFIX } from './constants/upload.constant';
 export class UploadedFileCleanupService {
   private readonly logger = new Logger(UploadedFileCleanupService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly imageVariantService: ImageVariantService,
+  ) {}
 
   async deleteIfUnreferenced(url: string | null | undefined): Promise<void> {
-    const filename = this.toUploadsFilename(url);
+    const filename = toUploadsFilename(url);
 
     if (!filename) {
       return;
@@ -31,6 +36,15 @@ export class UploadedFileCleanupService {
       return;
     }
 
+    // Оригинал и его размерные варианты (streamer.API#78) — файлы вариантов
+    // никем не ссылаются напрямую, поэтому уходят вместе с оригиналом.
+    await Promise.all([
+      this.deleteOriginal(filename),
+      this.imageVariantService.deleteVariants(filename),
+    ]);
+  }
+
+  private async deleteOriginal(filename: string): Promise<void> {
     try {
       await unlink(join(UPLOADS_DIR, filename));
     } catch {
@@ -38,20 +52,6 @@ export class UploadedFileCleanupService {
       // операцию, которая в остальном прошла, нечего.
       this.logger.debug(`Не удалось удалить файл ${filename}`);
     }
-  }
-
-  private toUploadsFilename(url: string | null | undefined): string | null {
-    if (!url || !url.startsWith(`${UPLOADS_URL_PREFIX}/`)) {
-      return null;
-    }
-
-    const filename = url.slice(UPLOADS_URL_PREFIX.length + 1);
-
-    if (!filename || filename.includes('/') || filename.includes('..')) {
-      return null;
-    }
-
-    return filename;
   }
 
   private async isReferenced(url: string): Promise<boolean> {

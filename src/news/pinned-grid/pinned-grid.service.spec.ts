@@ -96,6 +96,7 @@ describe('PinnedGridService', () => {
         type: 'none',
         url: null,
         focalPoint: null,
+        variants: [],
       });
     });
 
@@ -153,6 +154,7 @@ describe('PinnedGridService', () => {
         type: 'image',
         url: '/uploads/cover.png',
         focalPoint: { x: 30, y: 40 },
+        variants: [],
       });
     });
 

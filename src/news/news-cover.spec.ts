@@ -17,7 +17,12 @@ describe('resolveNewsCover', () => {
       images: [image('/uploads/a.jpg', 10, 20)],
     });
 
-    expect(cover).toEqual({ type: 'none', url: null, focalPoint: null });
+    expect(cover).toEqual({
+      type: 'none',
+      url: null,
+      focalPoint: null,
+      variants: [],
+    });
   });
 
   it('takes the focal point of the news image the cover points at', () => {
@@ -36,6 +41,7 @@ describe('resolveNewsCover', () => {
       type: 'image',
       url: '/uploads/b.jpg',
       focalPoint: { x: 30, y: 40 },
+      variants: [],
     });
   });
 
@@ -64,6 +70,7 @@ describe('resolveNewsCover', () => {
       type: 'image',
       url: '/uploads/gone.jpg',
       focalPoint: null,
+      variants: [],
     });
   });
 
@@ -80,6 +87,7 @@ describe('resolveNewsCover', () => {
       type: 'custom',
       url: '/uploads/own.jpg',
       focalPoint: { x: 70, y: 80 },
+      variants: [],
     });
   });
 
@@ -104,6 +112,11 @@ describe('resolveNewsCover', () => {
       images: [],
     });
 
-    expect(cover).toEqual({ type: 'none', url: null, focalPoint: null });
+    expect(cover).toEqual({
+      type: 'none',
+      url: null,
+      focalPoint: null,
+      variants: [],
+    });
   });
 });
