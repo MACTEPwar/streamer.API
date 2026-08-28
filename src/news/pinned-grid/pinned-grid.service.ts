@@ -12,7 +12,9 @@ import {
 } from './dto/update-pinned-grid-layout.dto';
 import { toPrismaImagePosition } from './pinned-grid-image-position.util';
 import {
+  OwnReactions,
   PINNED_LAYOUT_INCLUDE,
+  PinnedGridLayoutWithPlacements,
   toPinnedGridLayoutDto,
 } from './pinned-grid.mapper';
 
@@ -30,14 +32,26 @@ const DEADLOCK_RETRY_LIMIT = 3;
 export class PinnedGridService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getLayout(viewport: PinnedGridViewport): Promise<PinnedGridLayoutDto> {
+  /**
+   * Раскладка отдаётся вместе с содержимым карточек (`ЗАК-Б-01`,
+   * streamer.API#76): клиенту не нужно доискивать новости отдельно, поэтому
+   * закреплённая новость любой давности приходит целиком, а не только та,
+   * что попала в свежую сотню ленты.
+   */
+  async getLayout(
+    viewport: PinnedGridViewport,
+    currentUserId?: string,
+  ): Promise<PinnedGridLayoutDto> {
     try {
       const layout = await this.prisma.pinnedGridLayout.findUniqueOrThrow({
         where: { viewport },
         include: PINNED_LAYOUT_INCLUDE,
       });
 
-      return toPinnedGridLayoutDto(layout);
+      return toPinnedGridLayoutDto(
+        layout,
+        await this.loadOwnReactions(layout, currentUserId),
+      );
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -47,6 +61,43 @@ export class PinnedGridService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Свои лайки и просмотры читателя — ДВА запроса на весь ответ, а не по паре
+   * на слот (`db-avoid-n-plus-one`). Включить их в дерево раскладки нельзя без
+   * компромисса: с фильтром по пользователю `include` становится динамическим и
+   * ломает вывод типа `PinnedGridGetPayload`, без фильтра — тянет все реакции
+   * каждой новости ради двух булевых флагов.
+   *
+   * Без сессии не спрашиваем вовсе и возвращаем `null`: признак собственной
+   * реакции не определён, и это отличимо от «не реагировал» (`РЕА-Б-02`).
+   */
+  private async loadOwnReactions(
+    layout: PinnedGridLayoutWithPlacements,
+    currentUserId?: string,
+  ): Promise<OwnReactions | null> {
+    if (!currentUserId) {
+      return null;
+    }
+
+    const newsIds = layout.placements.map(
+      (placement) => placement.pinnedNews.newsId,
+    );
+    if (newsIds.length === 0) {
+      return { liked: new Set(), viewed: new Set() };
+    }
+
+    const where = { userId: currentUserId, newsId: { in: newsIds } };
+    const [likes, views] = await Promise.all([
+      this.prisma.newsLike.findMany({ where, select: { newsId: true } }),
+      this.prisma.newsView.findMany({ where, select: { newsId: true } }),
+    ]);
+
+    return {
+      liked: new Set(likes.map((like) => like.newsId)),
+      viewed: new Set(views.map((view) => view.newsId)),
+    };
   }
 
   async updateLayout(

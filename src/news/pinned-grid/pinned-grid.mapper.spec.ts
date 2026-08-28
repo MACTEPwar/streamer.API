@@ -39,6 +39,10 @@ describe('toPinnedGridLayoutDto', () => {
 
   const newsWithoutCover = {
     id: 'news-1',
+    title: 'Открыт турнир по CS2',
+    description: 'Подробное описание новости',
+    publishedAt: new Date('2026-08-01'),
+    viewCount: 320,
     coverType: NewsCoverType.NONE,
     coverUrl: null,
     coverFocalX: null,
@@ -52,6 +56,17 @@ describe('toPinnedGridLayoutDto', () => {
         focalY: 20,
       },
     ],
+    tags: [
+      {
+        id: 'tag-1',
+        name: 'Турниры',
+        color: '#d4b106',
+        textColor: '#ffffff',
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+      },
+    ],
+    _count: { likes: 42 },
   };
 
   it('shows the cover of the news in the slot', () => {
@@ -79,6 +94,69 @@ describe('toPinnedGridLayoutDto', () => {
       type: 'none',
       url: null,
       focalPoint: null,
+    });
+  });
+
+  describe('содержимое карточки (ЗАК-Б-01)', () => {
+    it('carries everything the card renders, so the client need not look it up', () => {
+      const dto = toPinnedGridLayoutDto(layoutWithNews(newsWithoutCover));
+
+      expect(dto.slots[0].news).toEqual({
+        title: 'Открыт турнир по CS2',
+        description: 'Подробное описание новости',
+        publishedAt: new Date('2026-08-01'),
+        viewCount: 320,
+        likeCount: 42,
+        likedByCurrentUser: null,
+        viewedByCurrentUser: null,
+        tags: [
+          {
+            id: 'tag-1',
+            name: 'Турниры',
+            color: '#d4b106',
+            textColor: '#ffffff',
+            createdAt: new Date('2026-01-01'),
+            updatedAt: new Date('2026-01-01'),
+          },
+        ],
+      });
+    });
+
+    it('takes likeCount from the aggregate, not from a loaded list of rows', () => {
+      const dto = toPinnedGridLayoutDto(
+        layoutWithNews({ ...newsWithoutCover, _count: { likes: 1024 } }),
+      );
+
+      expect(dto.slots[0].news.likeCount).toBe(1024);
+    });
+  });
+
+  describe('признаки собственной реакции (РЕА-Б-02)', () => {
+    it('leaves them undefined for a guest — that is not the same as «did not react»', () => {
+      const dto = toPinnedGridLayoutDto(layoutWithNews(newsWithoutCover), null);
+
+      expect(dto.slots[0].news.likedByCurrentUser).toBeNull();
+      expect(dto.slots[0].news.viewedByCurrentUser).toBeNull();
+    });
+
+    it('reports the real reactions of a signed-in reader', () => {
+      const dto = toPinnedGridLayoutDto(layoutWithNews(newsWithoutCover), {
+        liked: new Set(['news-1']),
+        viewed: new Set<string>(),
+      });
+
+      expect(dto.slots[0].news.likedByCurrentUser).toBe(true);
+      expect(dto.slots[0].news.viewedByCurrentUser).toBe(false);
+    });
+
+    it('distinguishes «did not react» from «no session» — false, not null', () => {
+      const dto = toPinnedGridLayoutDto(layoutWithNews(newsWithoutCover), {
+        liked: new Set<string>(),
+        viewed: new Set<string>(),
+      });
+
+      expect(dto.slots[0].news.likedByCurrentUser).toBe(false);
+      expect(dto.slots[0].news.viewedByCurrentUser).toBe(false);
     });
   });
 });
