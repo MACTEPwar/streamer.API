@@ -432,7 +432,16 @@ describe('AdminNewsService', () => {
           coverUrl: '/uploads/other.jpg',
           coverFocalX: null,
           coverFocalY: null,
-          images: { create: [{ url: '/uploads/other.jpg', order: 0 }] },
+          images: {
+            create: [
+              {
+                url: '/uploads/other.jpg',
+                order: 0,
+                focalX: null,
+                focalY: null,
+              },
+            ],
+          },
           tags: undefined,
         },
         include: NEWS_INCLUDE,
@@ -563,9 +572,16 @@ describe('AdminNewsService', () => {
           description: undefined,
           publishedAt: undefined,
           images: {
+            // focalX/focalY переносятся по адресу картинки (ИЗО-Б-02): у
+            // обеих здесь фокус не был задан, поэтому null
             create: [
-              { url: '/uploads/kept.jpg', order: 0 },
-              { url: '/uploads/new.png', order: 1 },
+              {
+                url: '/uploads/kept.jpg',
+                order: 0,
+                focalX: null,
+                focalY: null,
+              },
+              { url: '/uploads/new.png', order: 1, focalX: null, focalY: null },
             ],
           },
           tags: undefined,
@@ -573,6 +589,124 @@ describe('AdminNewsService', () => {
         include: NEWS_INCLUDE,
       });
       expect(newsImageDownloadServiceMock.cleanup).not.toHaveBeenCalled();
+    });
+
+    describe('точка фокуса при замене состава изображений (ИЗО-Б-02)', () => {
+      type UpdateArg = { data: { images?: { create: unknown[] } } };
+
+      function updateArg(txNewsUpdate: jest.Mock): UpdateArg {
+        const calls = txNewsUpdate.mock.calls as unknown as UpdateArg[][];
+        return calls[0][0];
+      }
+
+      function expectCreatedImages(txNewsUpdate: jest.Mock): unknown[] {
+        return updateArg(txNewsUpdate).data.images!.create;
+      }
+
+      function arrangeUpdate(currentImages: Record<string, unknown>[]) {
+        prismaMock.news.findUnique.mockResolvedValue(
+          currentNews({ images: currentImages }),
+        );
+        const txNewsUpdate = jest.fn().mockResolvedValue(sampleNews);
+        prismaMock.$transaction.mockImplementation(
+          (callback: (tx: unknown) => unknown) =>
+            callback({
+              news: { update: txNewsUpdate },
+              newsImage: { deleteMany: jest.fn() },
+            }),
+        );
+        return txNewsUpdate;
+      }
+
+      it('keeps the focal point of an image that stayed in the new set', async () => {
+        const txNewsUpdate = arrangeUpdate([
+          { url: '/uploads/kept.jpg', order: 0, focalX: 70, focalY: 30 },
+        ]);
+        newsImageDownloadServiceMock.resolveImageUrls.mockResolvedValue({
+          resolved: [{ url: '/uploads/kept.jpg' }],
+          downloadedFilePaths: [],
+        });
+
+        await service.update('news-1', { imageUrls: ['/uploads/kept.jpg'] });
+
+        expect(expectCreatedImages(txNewsUpdate)).toEqual([
+          { url: '/uploads/kept.jpg', order: 0, focalX: 70, focalY: 30 },
+        ]);
+      });
+
+      it('updates the order by the new set — keeping the focal point does not freeze it (ИЗО-О-01)', async () => {
+        const txNewsUpdate = arrangeUpdate([
+          { url: '/uploads/a.jpg', order: 0, focalX: 10, focalY: 20 },
+          { url: '/uploads/b.jpg', order: 1, focalX: 80, focalY: 90 },
+        ]);
+        newsImageDownloadServiceMock.resolveImageUrls.mockResolvedValue({
+          resolved: [{ url: '/uploads/b.jpg' }, { url: '/uploads/a.jpg' }],
+          downloadedFilePaths: [],
+        });
+
+        await service.update('news-1', {
+          imageUrls: ['/uploads/b.jpg', '/uploads/a.jpg'],
+        });
+
+        expect(expectCreatedImages(txNewsUpdate)).toEqual([
+          { url: '/uploads/b.jpg', order: 0, focalX: 80, focalY: 90 },
+          { url: '/uploads/a.jpg', order: 1, focalX: 10, focalY: 20 },
+        ]);
+      });
+
+      it('gives a newly added image no focal point — it is cropped by the centre (ФОК-О-02)', async () => {
+        const txNewsUpdate = arrangeUpdate([
+          { url: '/uploads/kept.jpg', order: 0, focalX: 70, focalY: 30 },
+        ]);
+        newsImageDownloadServiceMock.resolveImageUrls.mockResolvedValue({
+          resolved: [{ url: '/uploads/kept.jpg' }, { url: '/uploads/new.png' }],
+          downloadedFilePaths: ['/abs/path/uploads/new.png'],
+        });
+
+        await service.update('news-1', {
+          imageUrls: ['/uploads/kept.jpg', 'https://example.com/pic.png'],
+        });
+
+        expect(expectCreatedImages(txNewsUpdate)).toEqual([
+          { url: '/uploads/kept.jpg', order: 0, focalX: 70, focalY: 30 },
+          { url: '/uploads/new.png', order: 1, focalX: null, focalY: null },
+        ]);
+      });
+
+      it('drops the focal point together with an image that left the set', async () => {
+        const txNewsUpdate = arrangeUpdate([
+          { url: '/uploads/gone.jpg', order: 0, focalX: 5, focalY: 5 },
+          { url: '/uploads/kept.jpg', order: 1, focalX: 70, focalY: 30 },
+        ]);
+        newsImageDownloadServiceMock.resolveImageUrls.mockResolvedValue({
+          resolved: [{ url: '/uploads/kept.jpg' }],
+          downloadedFilePaths: [],
+        });
+
+        await service.update('news-1', { imageUrls: ['/uploads/kept.jpg'] });
+
+        const created = expectCreatedImages(txNewsUpdate);
+        expect(created).toHaveLength(1);
+        expect(created[0]).toEqual({
+          url: '/uploads/kept.jpg',
+          order: 0,
+          focalX: 70,
+          focalY: 30,
+        });
+      });
+
+      it('does not touch images at all when the update leaves the set alone', async () => {
+        const txNewsUpdate = arrangeUpdate([
+          { url: '/uploads/kept.jpg', order: 0, focalX: 70, focalY: 30 },
+        ]);
+
+        await service.update('news-1', { title: 'Новый заголовок' });
+
+        expect(updateArg(txNewsUpdate).data.images).toBeUndefined();
+        expect(
+          newsImageDownloadServiceMock.resolveImageUrls,
+        ).not.toHaveBeenCalled();
+      });
     });
 
     it('cleans up newly downloaded files when the transaction fails', async () => {
