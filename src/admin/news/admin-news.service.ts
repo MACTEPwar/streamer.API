@@ -178,6 +178,19 @@ export class AdminNewsService {
       await this.deleteOwnCoverFile(current);
     }
 
+    // То же для набора: старые записи NewsImage уже пересозданы транзакцией,
+    // и только сейчас видно, какие адреса остались без единой ссылки.
+    // deleteIfUnreferenced проверяет это по БД заново для каждого адреса, так
+    // что переживший rebuildImages() адрес (тот же файл в новом наборе)
+    // просто не пройдёт проверку и останется на диске (ФАЙ-Б-04).
+    if (resolvedImages) {
+      await Promise.all(
+        current.images.map((image) =>
+          this.uploadedFileCleanupService.deleteIfUnreferenced(image.url),
+        ),
+      );
+    }
+
     return toNewsDto(news);
   }
 
@@ -232,7 +245,12 @@ export class AdminNewsService {
       include: NEWS_INCLUDE,
     });
 
-    await this.deleteOwnCoverFile(news);
+    await Promise.all([
+      this.deleteOwnCoverFile(news),
+      ...news.images.map((image) =>
+        this.uploadedFileCleanupService.deleteIfUnreferenced(image.url),
+      ),
+    ]);
 
     return toNewsDto(news);
   }
