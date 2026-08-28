@@ -516,6 +516,67 @@ describe('AdminNewsService', () => {
       ).not.toHaveBeenCalled();
     });
 
+    it('cleans up every image file of the replaced set after the transaction', async () => {
+      prismaMock.news.findUnique.mockResolvedValue(
+        currentNews({
+          images: [
+            { url: '/uploads/kept.jpg', focalX: null, focalY: null },
+            { url: '/uploads/dropped.jpg', focalX: null, focalY: null },
+          ],
+        }),
+      );
+      newsImageDownloadServiceMock.resolveImageUrls.mockResolvedValue({
+        resolved: [{ url: '/uploads/kept.jpg' }, { url: '/uploads/new.jpg' }],
+        downloadedFilePaths: [],
+      });
+      prismaMock.$transaction.mockImplementation(
+        (callback: (tx: unknown) => unknown) =>
+          callback({
+            news: { update: jest.fn().mockResolvedValue(sampleNews) },
+            newsImage: { deleteMany: jest.fn() },
+          }),
+      );
+
+      await service.update('news-1', {
+        imageUrls: ['/uploads/kept.jpg', '/uploads/new.jpg'],
+      });
+
+      // Уборка идёт по каждому старому адресу без разбора «выжил/не выжил» —
+      // deleteIfUnreferenced сам проверит по БД, что кадр с тем же url в новом
+      // наборе ещё ссылается на файл, и не удалит его.
+      expect(
+        uploadedFileCleanupServiceMock.deleteIfUnreferenced,
+      ).toHaveBeenCalledTimes(2);
+      expect(
+        uploadedFileCleanupServiceMock.deleteIfUnreferenced,
+      ).toHaveBeenCalledWith('/uploads/kept.jpg');
+      expect(
+        uploadedFileCleanupServiceMock.deleteIfUnreferenced,
+      ).toHaveBeenCalledWith('/uploads/dropped.jpg');
+    });
+
+    it('does not touch image files when the set was not replaced', async () => {
+      prismaMock.news.findUnique.mockResolvedValue(
+        currentNews({
+          images: [{ url: '/uploads/kept.jpg', focalX: null, focalY: null }],
+        }),
+      );
+      const txNewsUpdate = jest.fn().mockResolvedValue(sampleNews);
+      prismaMock.$transaction.mockImplementation(
+        (callback: (tx: unknown) => unknown) =>
+          callback({
+            news: { update: txNewsUpdate },
+            newsImage: { deleteMany: jest.fn() },
+          }),
+      );
+
+      await service.update('news-1', { title: 'Updated title' });
+
+      expect(
+        uploadedFileCleanupServiceMock.deleteIfUnreferenced,
+      ).not.toHaveBeenCalled();
+    });
+
     it('replaces tags with `set` instead of `connect`', async () => {
       prismaMock.news.findUnique.mockResolvedValue(currentNews());
       const txNewsUpdate = jest.fn().mockResolvedValue(sampleNews);
@@ -836,6 +897,26 @@ describe('AdminNewsService', () => {
       expect(
         uploadedFileCleanupServiceMock.deleteIfUnreferenced,
       ).not.toHaveBeenCalled();
+    });
+
+    it('cleans up every gallery image file along with the news', async () => {
+      prismaMock.news.findUnique.mockResolvedValue(currentNews());
+      prismaMock.news.delete.mockResolvedValue({
+        ...sampleNews,
+        images: [{ url: '/uploads/one.jpg' }, { url: '/uploads/two.jpg' }],
+      });
+
+      await service.remove('news-1');
+
+      expect(
+        uploadedFileCleanupServiceMock.deleteIfUnreferenced,
+      ).toHaveBeenCalledTimes(2);
+      expect(
+        uploadedFileCleanupServiceMock.deleteIfUnreferenced,
+      ).toHaveBeenCalledWith('/uploads/one.jpg');
+      expect(
+        uploadedFileCleanupServiceMock.deleteIfUnreferenced,
+      ).toHaveBeenCalledWith('/uploads/two.jpg');
     });
   });
 });
